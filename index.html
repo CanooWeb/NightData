@@ -499,6 +499,10 @@
     .voice-call-active { display: none; padding: 4px 7px; color: #7bd389; background: rgba(123,211,137,.08); border: 1px solid rgba(123,211,137,.45); border-radius: 6px; font: 9px 'Share Tech Mono',monospace; letter-spacing: 1px; cursor: pointer; animation: voicepulse 1.8s ease-in-out infinite; }
     .voice-call-active.show { display: inline-block; }
     @keyframes voicepulse { 50% { box-shadow: 0 0 12px rgba(123,211,137,.35); } }
+    .voice-settings { display: none; margin: 0 0 14px; padding: 12px 14px; border: 1px solid rgba(139,63,240,.35); border-radius: 10px; background: rgba(10,11,16,.6); color: #b9a8d8; font: 12px 'Share Tech Mono',monospace; }
+    .voice-settings.show { display: block; }
+    .voice-settings label { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+    .voice-settings input { accent-color: #7ae0e0; transform: scale(1.2); }
     @media (max-width: 700px) { .voiceoverlay { padding: 12px 10px 70px; } .voice-create { grid-template-columns: 1fr 1fr; } .voice-create button { grid-column: 1 / -1; } .voice-channel { align-items: flex-start; flex-wrap: wrap; } }
     @media (max-width: 700px) { .floatui-market { left: 10px; top: 87px; } .market-form { grid-template-columns: 1fr; } .market-form .market-submit { grid-column: auto; } }
     .floatui-cases.case-button {
@@ -1243,8 +1247,9 @@
 
   <div class="voiceoverlay" id="voiceOverlay">
     <div class="shell">
-      <div class="admin-head"><div class="brand">VOICE CHAT</div><button class="btn danger" onclick="toggleVoiceOverlay()">Schließen</button></div>
+      <div class="admin-head"><div class="brand">VOICE CHAT</div><div><button class="btn mini" onclick="toggleVoiceSettings()" title="Voice-Einstellungen">⚙</button> <button class="btn danger" onclick="toggleVoiceOverlay()">Schließen</button></div></div>
       <div class="panel"><div class="panel-head"><h2>Sprachkanäle</h2><span class="live" id="voiceStatus">● BEREIT</span></div><div class="panel-body">
+        <div class="voice-settings" id="voiceSettings"><label><input type="checkbox" id="voiceNoiseSuppression" checked onchange="toggleVoiceNoiseSuppression(this.checked)"> Hintergrundgeräusche unterdrücken <span class="case-status">(Browser Noise Suppression)</span></label></div>
         <h3>Kanal erstellen</h3>
         <div class="voice-create">
           <div class="row"><label for="voice-name">Name</label><input id="voice-name" maxlength="32" placeholder="z.B. Night Lounge"></div>
@@ -1569,6 +1574,7 @@
     let voiceSignalId = 0;
     let voiceChannelsState = [];
     let voiceMuted = false;
+    let voiceNoiseSuppression = true;
     let voiceActivityTimer = null;
     const voiceAnalyzers = {};
     const voiceSpeaking = {};
@@ -1579,6 +1585,19 @@
       overlay.classList.toggle('show');
       if (overlay.classList.contains('show')) { loadVoiceChannels(); if (!voiceUiTimer) voiceUiTimer = setInterval(function () { renderVoiceChannels(voiceChannelsState); }, 1000); if (!voiceChannelTimer) voiceChannelTimer = setInterval(loadVoiceChannels, 2000); }
       else { if (voiceUiTimer) { clearInterval(voiceUiTimer); voiceUiTimer = null; } if (voiceChannelTimer) { clearInterval(voiceChannelTimer); voiceChannelTimer = null; } }
+    }
+    function toggleVoiceSettings() { document.getElementById('voiceSettings').classList.toggle('show'); }
+    async function toggleVoiceNoiseSuppression(enabled) {
+      voiceNoiseSuppression = enabled;
+      if (!voiceStream) return;
+      try {
+        await Promise.all(voiceStream.getAudioTracks().map(function (track) { return track.applyConstraints({ noiseSuppression: enabled, echoCancellation: true, autoGainControl: true }); }));
+        document.getElementById('voiceStatus').textContent = enabled ? '● NOISE FILTER AKTIV' : '● VERBUNDEN';
+      } catch (e) {
+        document.getElementById('voiceNoiseSuppression').checked = !enabled;
+        voiceNoiseSuppression = !enabled;
+        showMessage('voice-msg', 'Diese Browser-Version unterstützt die Geräuschunterdrückung nicht.', 'error');
+      }
     }
     async function loadVoiceChannels() {
       const data = await apiGet('/api/voice', getToken());
@@ -1602,7 +1621,7 @@
     }
     async function joinVoiceChannel(id) {
       if (voiceChannelId) await leaveVoiceChannel();
-      try { voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); }
+      try { voiceStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: voiceNoiseSuppression, echoCancellation: true, autoGainControl: true }, video: false }); }
       catch (e) { showMessage('voice-msg', 'Mikrofonzugriff wurde nicht erlaubt.', 'error'); return; }
       const data = await api('/api/voice/join', { channel_id: id }, getToken());
       if (!data.success) { voiceStream.getTracks().forEach(function (t) { t.stop(); }); voiceStream = null; showMessage('voice-msg', data.error || 'Beitritt fehlgeschlagen.', 'error'); return; }
