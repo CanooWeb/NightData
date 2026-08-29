@@ -456,6 +456,7 @@ async function ensureSchema(env) {
     reason TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   )`).run();
+  await env.DB.prepare('ALTER TABLE warnings ADD COLUMN shown INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS troll_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     target_user_id INTEGER NOT NULL,
@@ -665,7 +666,8 @@ async function handleMe(request, env, corsHeaders) {
   const postsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM posts WHERE author = ?').bind(user.username).first()).n;
   const ticketsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM discord_tickets WHERE author = ?').bind(user.username).first()).n;
 
-  const warnings = (await env.DB.prepare('SELECT id, reason, created_at FROM warnings WHERE user_id = ? ORDER BY id DESC LIMIT 20').bind(user.id).all()).results;
+  const warnings = (await env.DB.prepare('SELECT id, reason, created_at FROM warnings WHERE user_id = ? AND shown = 0 ORDER BY id DESC LIMIT 20').bind(user.id).all()).results;
+  if (warnings.length) await env.DB.prepare('UPDATE warnings SET shown = 1 WHERE user_id = ? AND shown = 0').bind(user.id).run();
   return json({ success: true, user, postsCount, ticketsCount, warnings }, 200, corsHeaders);
 }
 
