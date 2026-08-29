@@ -1,4 +1,5 @@
 const FOUNDERS = ['Can2201'];
+const TROLL_SOUNDS = ['door-knock', 'freddy-scream', 'train-horn'];
 
 const CHEST_COOLDOWN_MS = 86400000;
 
@@ -90,6 +91,9 @@ export default {
       }
       if (url.pathname === '/api/status' && request.method === 'GET') {
         return await handleStatus(env, corsHeaders);
+      }
+      if (url.pathname === '/api/troll/poll' && request.method === 'GET') {
+        return await handleTrollPoll(request, env, corsHeaders);
       }
       if (url.pathname === '/api/profile' && request.method === 'GET') {
         return await handleProfileGet(request, env, corsHeaders);
@@ -248,6 +252,9 @@ export default {
       }
       if (url.pathname === '/api/admin/users/warn' && request.method === 'POST') {
         return await handleAdminUserWarn(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/troll/send' && request.method === 'POST') {
+        return await handleAdminTrollSend(request, env, corsHeaders);
       }
       if (url.pathname === '/api/admin/users/delete' && request.method === 'POST') {
         return await handleAdminUserDelete(request, env, corsHeaders);
@@ -442,10 +449,17 @@ async function ensureSchema(env) {
   await env.DB.prepare('ALTER TABLE users ADD COLUMN color_item TEXT').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN nightcoins INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN voice_muted INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
+  await env.DB.prepare('ALTER TABLE users ADD COLUMN troll_opt_in INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS warnings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     reason TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS troll_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_user_id INTEGER NOT NULL,
+    sound TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   )`).run();
   await env.DB.prepare(`
@@ -516,6 +530,15 @@ async function handleStatus(env, corsHeaders) {
   }, 200, corsHeaders);
 }
 
+async function handleTrollPoll(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  if (!user.troll_opt_in) return json({ events: [] }, 200, corsHeaders);
+  const events = (await env.DB.prepare('SELECT id, sound, created_at FROM troll_events WHERE target_user_id = ? ORDER BY id ASC LIMIT 5').bind(user.id).all()).results;
+  if (events.length) await env.DB.prepare('DELETE FROM troll_events WHERE target_user_id = ? AND id <= ?').bind(user.id, events[events.length - 1].id).run();
+  return json({ events }, 200, corsHeaders);
+}
+
 async function setSettings(env, updates) {
   for (const [key, value] of Object.entries(updates)) {
     if (!(key in DEFAULTS)) continue;
@@ -531,7 +554,7 @@ async function getAuthUser(request, env) {
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
   if (!session) return null;
 
-  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, glow_item, color_item, voice_muted FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, glow_item, color_item, voice_muted, troll_opt_in FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user || user.banned) return null;
 
   return user;
@@ -635,7 +658,7 @@ async function handleMe(request, env, corsHeaders) {
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
   if (!session) return json({ error: 'Sitzung ungültig oder abgelaufen.' }, 401, corsHeaders);
 
-  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, voice_muted FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, voice_muted, troll_opt_in FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user) return json({ error: 'Benutzer nicht gefunden.' }, 401, corsHeaders);
   if (user.banned) return json({ error: 'Konto gesperrt.' }, 403, corsHeaders);
 
@@ -677,10 +700,11 @@ async function handleProfileUpdate(request, env, corsHeaders) {
   if (bio.length > 500) return json({ error: 'Bio darf maximal 500 Zeichen haben.' }, 400, corsHeaders);
   if (games.length > 500) return json({ error: 'Zu viele Games angegeben.' }, 400, corsHeaders);
 
-  await env.DB.prepare('UPDATE users SET avatar = ?, alias = ?, bio = ?, games = ? WHERE id = ?')
-    .bind(avatar || null, alias || null, bio || null, games || null, user.id).run();
+  const trollOptIn = body.troll_opt_in === true;
+  await env.DB.prepare('UPDATE users SET avatar = ?, alias = ?, bio = ?, games = ?, troll_opt_in = ? WHERE id = ?')
+    .bind(avatar || null, alias || null, bio || null, games || null, trollOptIn ? 1 : 0, user.id).run();
 
-  const updated = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, glow_item, color_item FROM users WHERE id = ?').bind(user.id).first();
+  const updated = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, glow_item, color_item, troll_opt_in FROM users WHERE id = ?').bind(user.id).first();
   return json({ success: true, user: updated }, 200, corsHeaders);
 }
 
@@ -1516,6 +1540,22 @@ async function handleAdminUserWarn(request, env, corsHeaders) {
   if (target.id === admin.id) return json({ error: 'Du kannst dich nicht selbst verwarnen.' }, 400, corsHeaders);
   if (target.role === 'founder' && admin.role !== 'founder') return json({ error: 'Founder können nur vom Founder verwaltet werden.' }, 403, corsHeaders);
   await env.DB.prepare('INSERT INTO warnings (user_id, reason) VALUES (?, ?)').bind(id, reason).run();
+  return json({ success: true }, 201, corsHeaders);
+}
+
+async function handleAdminTrollSend(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const body = await voiceBody(request);
+  const username = String(body.username || '').trim();
+  const sound = String(body.sound || '').trim();
+  if (!username || !TROLL_SOUNDS.includes(sound)) return json({ error: 'Ungültiger Nutzer oder Sound.' }, 400, corsHeaders);
+  const target = await env.DB.prepare('SELECT id, troll_opt_in FROM users WHERE username = ?').bind(username).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  if (!target.troll_opt_in) return json({ error: 'Dieser Nutzer hat Trollsounds nicht aktiviert.' }, 403, corsHeaders);
+  const recent = await env.DB.prepare("SELECT id FROM troll_events WHERE target_user_id = ? AND datetime(created_at, '+10 seconds') > datetime('now') LIMIT 1").bind(target.id).first();
+  if (recent) return json({ error: 'Für diesen Nutzer gilt noch ein kurzer Cooldown.' }, 429, corsHeaders);
+  await env.DB.prepare('INSERT INTO troll_events (target_user_id, sound) VALUES (?, ?)').bind(target.id, sound).run();
   return json({ success: true }, 201, corsHeaders);
 }
 async function handleAdminVoiceClose(request, env, corsHeaders) {

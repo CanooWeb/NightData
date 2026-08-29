@@ -979,7 +979,7 @@
         </div>
         <div class="adm-tabs">
           <button class="act" data-found data-tab="adm-overview" onclick="switchAdmTab('adm-overview')">System</button>
-          <button data-found data-tab="adm-users" onclick="switchAdmTab('adm-users')">Nutzer</button>
+          <button data-admin data-tab="adm-users" onclick="switchAdmTab('adm-users')">Nutzer</button>
           <button data-found data-tab="adm-roles" onclick="switchAdmTab('adm-roles')">Rollen</button>
           <button data-tab="adm-chests" onclick="switchAdmTab('adm-chests')">Kisten</button>
           <button data-tab="adm-posts" onclick="switchAdmTab('adm-posts')">Nachrichten + Inhalte</button>
@@ -997,9 +997,17 @@
             <div class="stat"><div class="n">—</div><div class="l">Aktive Sessions</div></div>
           </div>
           <div data-admin style="margin-top:22px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn danger" onclick="adminClearChat()">Alle Livechat-Nachrichten löschen</button><button class="btn danger" onclick="adminResetVoice()">Voice-Reset</button></div>
+          <div class="wide-form" data-admin style="margin-top:22px;">
+            <h3>Trollsounds (nur mit Zustimmung)</h3>
+            <p class="case-status">Sounds werden nur an Nutzer mit aktivierter Zustimmung gesendet und lokal begrenzt abgespielt.</p>
+            <div class="row"><label for="troll-target">Zielnutzer</label><input id="troll-target" type="text" maxlength="24" placeholder="Benutzername"></div>
+            <div class="row"><label for="troll-sound">Sound</label><select id="troll-sound"><option value="door-knock">Türklopfen</option><option value="freddy-scream">Freddy Scream</option><option value="train-horn">Train Horn</option></select></div>
+            <button class="btn" onclick="adminSendTrollSound()">Sound senden</button>
+            <div id="troll-msg" class="message"></div>
+          </div>
         </div>
 
-        <div class="adm-tab" id="adm-users" data-found>
+        <div class="adm-tab" id="adm-users" data-admin>
           <h3>Nutzer-Verwaltung</h3>
           <div id="admUsersList"><div class="empty">Lade…</div></div>
         </div>
@@ -1143,6 +1151,7 @@
             <label>Statistiken</label>
             <div id="prof-stats" class="prof-stats">Lade…</div>
           </div>
+          <div class="checkrow"><input type="checkbox" id="prof-troll-opt-in"><label for="prof-troll-opt-in">Trollsounds von Admins erlauben (Lautstärke begrenzt)</label></div>
           <div class="form-group">
             <label for="prof-alias">Alias / Anzeigename</label>
             <input type="text" id="prof-alias" maxlength="32" placeholder="z.B. NoxxZ">
@@ -2875,6 +2884,23 @@
       }
     }
     function closeWarningScreen() { document.getElementById('warningScreen').classList.remove('show'); }
+    const trollSoundUrls = {
+      'door-knock': './Door%20Knock%20Sound%20Effect.mp3',
+      'freddy-scream': './Golden%20Freddys%20Scream.mp3',
+      'train-horn': './Train%20Horn%20-%20Sound%20Effect%20(HD).mp3'
+    };
+    function playTrollSound(sound) {
+      const url = trollSoundUrls[sound];
+      if (!url) return;
+      const audio = new Audio(url);
+      audio.volume = 0.28;
+      audio.play().catch(function () {});
+    }
+    async function pollTrollSounds() {
+      if (!getToken()) return;
+      const data = await apiGet('/api/troll/poll', getToken());
+      if (data && Array.isArray(data.events)) data.events.forEach(function (event) { playTrollSound(event.sound); });
+    }
     async function pollWarnings() {
       if (!getToken()) return;
       const me = await apiGet('/api/me', getToken());
@@ -3006,6 +3032,7 @@
       if (!data.user) { if (data.error === 'Nicht angemeldet.' || data.error === 'Konto gesperrt.') doLogout(); return; }
       const u = data.user;
       document.getElementById('prof-alias').value = u.alias || '';
+      document.getElementById('prof-troll-opt-in').checked = !!u.troll_opt_in;
       document.getElementById('prof-bio').value = u.bio || '';
       document.getElementById('prof-games').value = (u.games || '').split('\n').filter(Boolean).join('\n');
       renderGamesChips(u.games);
@@ -3047,13 +3074,14 @@
       const alias = document.getElementById('prof-alias').value.trim();
       const bio = document.getElementById('prof-bio').value.trim();
       const games = document.getElementById('prof-games').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
-      const data = await api('/api/profile', { avatar, alias, bio, games }, token);
+      const data = await api('/api/profile', { avatar, alias, bio, games, troll_opt_in: document.getElementById('prof-troll-opt-in').checked }, token);
       if (!data.success) { showMessage('prof-msg', data.error || 'Fehler.', 'error'); return; }
       const u = getStoredUser();
       u.avatar = data.user.avatar || '';
       u.alias = data.user.alias || '';
       u.bio = data.user.bio || '';
       u.games = data.user.games || '';
+      u.troll_opt_in = !!data.user.troll_opt_in;
       localStorage.setItem('user', JSON.stringify(u));
       updateRankPill(u);
       document.getElementById('prof-avatar-file').value = '';
@@ -3285,6 +3313,12 @@
       if (reason === null || !reason.trim()) return;
       const data = await api('/api/admin/users/warn', { id, reason: reason.trim() }, getToken());
       if (!data.success) alert(data.error || 'Verwarnung fehlgeschlagen.');
+    }
+    async function adminSendTrollSound() {
+      const username = document.getElementById('troll-target').value.trim();
+      const sound = document.getElementById('troll-sound').value;
+      const data = await api('/api/admin/troll/send', { username, sound }, getToken());
+      showMessage('troll-msg', data.success ? 'Sound wurde zugestellt.' : (data.error || 'Sound konnte nicht gesendet werden.'), data.success ? 'success' : 'error');
     }
 
     async function adminGrantChests() {
@@ -3570,6 +3604,7 @@
           loadFeed();
           pollMaintenance();
           pollWarnings();
+          pollTrollSounds();
         }
       }, 2000);
     })();
