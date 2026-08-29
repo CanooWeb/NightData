@@ -464,6 +464,7 @@
       pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5);
     }
     .floatui-market { position: fixed; left: 18px; top: calc(50% + 78px); z-index: 8; pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
+    .mobile-menu-toggle, .mobile-menu { display: none; }
     .marketoverlay { position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto; padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px); }
     .marketoverlay.show { display: block; }
     .marketoverlay .shell { max-width: 900px; margin: 0 auto; }
@@ -644,12 +645,14 @@
     @media (max-width: 700px) {
       .chatpanel { right: 10px; left: 10px; width: auto; height: 45vh; top: auto; bottom: 12px; }
       .chatmin { right: 10px; bottom: 12px; top: auto; transform: none; }
-      .floatui .rankpill { left: 10px; right: 10px; bottom: calc(12px + 45vh + 112px); justify-content: center; }
-      .floatui .floatui-admin { bottom: calc(12px + 45vh + 60px); right: 10px; top: auto; }
-      .floatui .floatui-friends { bottom: calc(12px + 45vh + 10px); }
+      .floatui .rankpill, .floatui .floatui-admin, .floatui .floatui-friends, .floatui .floatui-cases, .floatui .floatui-market, .floatui .floatui-logout { display: none !important; }
+      .mobile-menu-toggle { display: block; position: fixed; top: 12px; right: 10px; z-index: 12; min-height: 44px; padding: 8px 14px; }
+      .mobile-menu { position: fixed; top: 64px; right: 10px; z-index: 40; width: min(230px, calc(100vw - 20px)); padding: 10px; border: 1px solid rgba(139,63,240,0.6); border-radius: 14px; background: rgba(11,13,22,0.97); box-shadow: 0 14px 40px rgba(0,0,0,0.65), 0 0 24px rgba(139,63,240,0.25); }
+      .mobile-menu.show { display: grid; gap: 7px; }
+      .mobile-menu button { width: 100%; min-height: 42px; text-align: left; }
       body { align-items: flex-start; }
       #loginCard { width: calc(100% - 24px); max-width: 420px; margin: 12px; padding: 28px 20px; }
-      #main { padding: 150px 10px 120px; }
+      #main { padding: 78px 10px 120px; }
       .topbar { align-items: flex-start; padding: 13px 14px; }
       .topbar .brand { font-size: 16px; letter-spacing: 2px; }
       .topbar .op { font-size: 11px; }
@@ -733,8 +736,7 @@
       .ticket-form { gap: 10px; }
       .ticket .t-top { align-items: flex-start; }
       .ticket .t-status { flex-shrink: 0; }
-      .floatui .rankpill { right: 10px; }
-      .floatui .floatui-admin { min-width: 92px; }
+      .mobile-menu-toggle { top: 10px; }
     }
   </style>
 </head>
@@ -821,6 +823,15 @@
     </button>
     <button class="btn mini floatui-market" id="btnMarket" onclick="toggleMarketOverlay()" title="Items gegen Items oder Nightcoins handeln">Trade Market</button>
     <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
+    <button class="btn ok mobile-menu-toggle" id="mobileMenuToggle" onclick="toggleMobileMenu()">Menü</button>
+    <div class="mobile-menu" id="mobileMenu">
+      <button class="btn mini" onclick="openProfile(); closeMobileMenu();">Profil</button>
+      <button class="btn mini" onclick="toggleCaseOverlay(); closeMobileMenu();">Kiste</button>
+      <button class="btn mini" onclick="toggleMarketOverlay(); closeMobileMenu();">Trade Market</button>
+      <button class="btn mini" onclick="toggleDmOverlay(); closeMobileMenu();">Freunde &amp; Nachrichten</button>
+      <button class="btn mini adminonly" id="mobileMenuAdmin" onclick="openAdmin(); closeMobileMenu();">Admin</button>
+      <button class="btn mini danger" onclick="doLogout()">Logout</button>
+    </div>
   </div>
 
   <div id="main">
@@ -1278,6 +1289,7 @@
           document.getElementById('profileOverlay').classList.remove('show');
           document.getElementById('dmOverlay').classList.remove('show');
           document.getElementById('marketOverlay').classList.remove('show');
+          closeMobileMenu();
           closeDmOverlay();
           closeUserPopup();
         }
@@ -1781,6 +1793,15 @@
       const overlay = document.getElementById('marketOverlay');
       overlay.classList.toggle('show');
       if (overlay.classList.contains('show')) loadMarket();
+    }
+
+    function toggleMobileMenu() {
+      document.getElementById('mobileMenu').classList.toggle('show');
+    }
+
+    function closeMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      if (menu) menu.classList.remove('show');
     }
 
     function toggleMarketWanted() {
@@ -2554,6 +2575,7 @@
       document.getElementById('floatui').classList.remove('hidden');
       const isStaff = user.role === 'founder' || user.role === 'admin' || user.role === 'moderator';
       document.getElementById('btnAdmin').classList.toggle('show', isStaff);
+      document.getElementById('mobileMenuAdmin').classList.toggle('show', isStaff);
       updateRankPill(user);
       applyWebsiteTheme(user);
       loadCase();
@@ -2563,6 +2585,7 @@
       closeDmOverlay();
       closeUserPopup();
       document.getElementById('marketOverlay').classList.remove('show');
+      closeMobileMenu();
       loadFeed();
       startChat();
       document.getElementById('btnFriends').classList.remove('hidden');
