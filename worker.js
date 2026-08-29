@@ -519,9 +519,15 @@ async function handleAdminUserRole(request, env, corsHeaders) {
   let body = {};
   try { body = await request.json(); } catch (err) {}
   const id = Number(body.id);
-  const role = body.role === 'founder' ? 'founder' : 'member';
+  const role = ['founder', 'moderator', 'member'].includes(body.role) ? body.role : 'member';
 
   if (!id) return json({ error: 'Ungültige ID.' }, 400, corsHeaders);
+
+  const target = await env.DB.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  if (target.id === founder.id && role !== 'founder') {
+    return json({ error: 'Du kannst deine eigene Rolle nicht ändern.' }, 400, corsHeaders);
+  }
 
   await env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
   return json({ success: true }, 200, corsHeaders);

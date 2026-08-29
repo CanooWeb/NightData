@@ -202,7 +202,11 @@
     .topbar .op { font-family: 'Share Tech Mono',monospace; font-size: 13px; color: #b18bf0; letter-spacing: 1px; }
     .role-badge { padding: 3px 10px; border-radius: 999px; font-family: 'Orbitron',sans-serif; font-size: 11px; letter-spacing: 1px; border: 1px solid; }
     .role-badge.founder { color: #7ae0e0; border-color: rgba(122,224,224,0.6); text-shadow: 0 0 8px rgba(122,224,224,0.6); }
+    .role-badge.moderator { color: #ffd166; border-color: rgba(255,209,102,0.6); text-shadow: 0 0 8px rgba(255,209,102,0.6); }
     .role-badge.member { color: #9a6fd8; border-color: rgba(139,63,240,0.5); }
+    .role-select { padding: 5px 8px; border: 1px solid #2a2d3a; border-radius: 6px; font-size: 12px; font-family: 'Share Tech Mono',monospace; color: #b18bf0; background: rgba(10,11,16,0.7); cursor: pointer; }
+    .role-select.founder { color: #7ae0e0; border-color: rgba(122,224,224,0.4); }
+    .role-select.moderator { color: #ffd166; border-color: rgba(255,209,102,0.4); }
 
     .btn { padding: 8px 16px; border: 1px solid rgba(139,63,240,0.6); border-radius: 8px; background: rgba(124,92,191,0.15); color: #c9a4ff; font-family: 'Orbitron',sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: filter .25s, box-shadow .25s; }
     .btn:hover { filter: brightness(1.3); box-shadow: 0 0 14px rgba(139,63,240,0.4); }
@@ -840,9 +844,11 @@
       document.getElementById('main').classList.add('active');
       document.getElementById('topUsername').textContent = 'OPERATOR: ' + escapeHtml(user.username).toUpperCase();
       const badge = document.getElementById('topRole');
+      const roleMap = { founder: ['FOUNDER', 'founder'], moderator: ['MODERATOR', 'moderator'], member: ['LIMITED', 'member'] };
+      const rInfo = roleMap[user.role] || roleMap.member;
       const isFounder = user.role === 'founder';
-      badge.textContent = isFounder ? 'FOUNDER' : 'LIMITED';
-      badge.className = 'role-badge ' + (isFounder ? 'founder' : 'member');
+      badge.textContent = rInfo[0];
+      badge.className = 'role-badge ' + rInfo[1];
       document.getElementById('btnAdmin').classList.toggle('show', isFounder);
       closeAdmin();
       loadFeed();
@@ -1017,15 +1023,20 @@
       const me = getStoredUser();
       const rows = data.users.map(u => {
         const self = me && me.id === u.id;
+        const roleSel = self ? '<span style="color:#7ae0e0">DU</span>' : '' +
+          '<select class="role-select ' + escapeHtml(u.role) + '" ' + (self ? 'disabled' : '') + ' onchange="adminSetRole(' + u.id + ',this.value)">' +
+          '<option value="founder"' + (u.role === 'founder' ? ' selected' : '') + '>Founder</option>' +
+          '<option value="moderator"' + (u.role === 'moderator' ? ' selected' : '') + '>Moderator</option>' +
+          '<option value="member"' + (u.role === 'member' ? ' selected' : '') + '>Member</option>' +
+          '</select>';
         const roleBtn = self
-          ? '<span style="color:#7ae0e0">DU</span>'
+          ? ''
           : '<span class="kick">' +
-            '<button class="btn mini" onclick="adminSetRole(' + u.id + ',\'' + (u.role === 'founder' ? 'member' : 'founder') + '\')">' + (u.role === 'founder' ? '→ Member' : '→ Founder') + '</button>' +
             '<button class="btn mini ' + (u.banned ? 'ok' : 'danger') + '" onclick="adminSetBan(' + u.id + ',' + (u.banned ? 0 : 1) + ')">' + (u.banned ? 'Entsperren' : 'Sperren') + '</button>' +
             '<button class="btn mini danger" onclick="adminDeleteUser(' + u.id + ',\'' + escapeHtml(u.username) + '\')">Löschen</button>' +
             '</span>';
         return '<tr><td>' + escapeHtml(u.username) + (u.banned ? ' <span class="banned-mark">[GESPERRT]</span>' : '') + '</td>' +
-          '<td>' + (u.role === 'founder' ? '<span style="color:#7ae0e0">FOUNDER</span>' : 'MEMBER') + '</td>' +
+          '<td>' + roleSel + '</td>' +
           '<td>' + escapeHtml(fmtTime(u.created_at)) + '</td><td>' + roleBtn + '</td></tr>';
       }).join('');
       document.getElementById('admUsersList').innerHTML =
