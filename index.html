@@ -1590,6 +1590,7 @@
     let voicePollTimer = null;
     let voiceUiTimer = null;
     let voiceChannelTimer = null;
+    let voiceMuteTimer = null;
     let voiceSignalId = 0;
     let voiceChannelsState = [];
     let voiceMuted = false;
@@ -1620,7 +1621,26 @@
     }
     async function loadVoiceChannels() {
       const data = await apiGet('/api/voice', getToken());
-      if (data && Array.isArray(data.channels)) { voiceChannelsState = data.channels; renderVoiceChannels(data.channels); }
+      if (data && Array.isArray(data.channels)) {
+        voiceChannelsState = data.channels;
+        syncVoiceMuteStates(data.channels);
+        renderVoiceChannels(data.channels);
+      }
+    }
+    function syncVoiceMuteStates(channels) {
+      const me = getStoredUser().username;
+      let mutedByStaff = false;
+      channels.forEach(function (channel) {
+        channel.members.forEach(function (member) {
+          const audio = document.getElementById('voice-audio-' + member.username);
+          if (audio) audio.muted = !!member.muted;
+          if (channel.id === voiceChannelId && member.username === me) mutedByStaff = !!member.muted;
+        });
+      });
+      if (voiceChannelId && mutedByStaff !== voiceMuted) {
+        voiceMuted = mutedByStaff;
+        if (voiceStream) voiceStream.getAudioTracks().forEach(function (track) { track.enabled = !voiceMuted; });
+      }
     }
     function voiceDuration(value) { const ms = Date.parse(String(value || '').replace(' ', 'T') + 'Z'); if (!Number.isFinite(ms)) return 'gerade eben'; const sec = Math.max(0, Math.floor((Date.now() - ms) / 1000)); return sec < 60 ? sec + 's' : Math.floor(sec / 60) + 'm ' + (sec % 60) + 's'; }
     function renderVoiceChannels(channels) {
@@ -1651,6 +1671,8 @@
       watchVoiceAudio(getStoredUser().username, voiceStream, false);
       startVoiceActivity();
       startVoicePolling();
+      if (voiceMuteTimer) clearInterval(voiceMuteTimer);
+      voiceMuteTimer = setInterval(loadVoiceChannels, 2000);
       const rooms = await apiGet('/api/voice', getToken());
       const room = rooms.channels && rooms.channels.find(function (c) { return c.id === id; });
       if (room) room.members.forEach(function (member) { if (member.username !== getStoredUser().username) ensureVoicePeer(member.username, true); });
@@ -1664,6 +1686,7 @@
       if (voiceActivityTimer) { clearInterval(voiceActivityTimer); voiceActivityTimer = null; }
       if (voiceStream) voiceStream.getTracks().forEach(function (t) { t.stop(); });
       voiceStream = null; voiceChannelId = null; if (voicePollTimer) clearInterval(voicePollTimer); voicePollTimer = null;
+      if (voiceMuteTimer) { clearInterval(voiceMuteTimer); voiceMuteTimer = null; }
       document.getElementById('voiceStatus').textContent = '● BEREIT'; loadVoiceChannels();
       document.getElementById('voiceCallActive').classList.remove('show');
     }
@@ -1698,7 +1721,7 @@
       if (voicePeers[name]) return voicePeers[name];
       const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }); voicePeers[name] = pc;
       if (voiceStream) voiceStream.getTracks().forEach(function (track) { pc.addTrack(track, voiceStream); });
-      pc.ontrack = function (e) { let audio = document.getElementById('voice-audio-' + name); if (!audio) { audio = document.createElement('audio'); audio.id = 'voice-audio-' + name; audio.autoplay = true; document.body.appendChild(audio); } audio.srcObject = e.streams[0]; watchVoiceAudio(name, e.streams[0], true); };
+       pc.ontrack = function (e) { let audio = document.getElementById('voice-audio-' + name); if (!audio) { audio = document.createElement('audio'); audio.id = 'voice-audio-' + name; audio.autoplay = true; document.body.appendChild(audio); } const channel = voiceChannelsState.find(function (c) { return c.id === voiceChannelId; }); const member = channel && channel.members.find(function (m) { return m.username === name; }); audio.muted = !!(member && member.muted); audio.srcObject = e.streams[0]; watchVoiceAudio(name, e.streams[0], true); };
       pc.onicecandidate = function (e) { if (e.candidate) voiceSignal(name, 'candidate', e.candidate); };
       if (initiate) { const offer = await pc.createOffer(); await pc.setLocalDescription(offer); await voiceSignal(name, 'offer', offer); }
       return pc;
