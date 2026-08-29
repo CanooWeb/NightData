@@ -191,6 +191,13 @@ export default {
       if (url.pathname === '/api/market/cancel' && request.method === 'POST') {
         return await handleMarketCancel(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/voice' && request.method === 'GET') return await handleVoiceGet(request, env, corsHeaders);
+      if (url.pathname === '/api/voice/create' && request.method === 'POST') return await handleVoiceCreate(request, env, corsHeaders);
+      if (url.pathname === '/api/voice/join' && request.method === 'POST') return await handleVoiceJoin(request, env, corsHeaders);
+      if (url.pathname === '/api/voice/leave' && request.method === 'POST') return await handleVoiceLeave(request, env, corsHeaders);
+      if (url.pathname === '/api/voice/signal' && request.method === 'POST') return await handleVoiceSignal(request, env, corsHeaders);
+      if (url.pathname === '/api/voice/signals' && request.method === 'GET') return await handleVoiceSignals(request, env, corsHeaders);
+      if (url.pathname === '/api/voice/close' && request.method === 'POST') return await handleVoiceClose(request, env, corsHeaders);
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
       }
@@ -429,6 +436,19 @@ async function ensureSchema(env) {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, owner TEXT NOT NULL,
+    max_users INTEGER NOT NULL DEFAULT 10, is_open INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_members (
+    channel_id INTEGER NOT NULL, username TEXT NOT NULL, joined_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (channel_id, username)
+  )`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, sender TEXT NOT NULL,
+    recipient TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now'))
+  )`).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_fr_to ON friend_requests (to_user)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_dm_recip ON dm_messages (recipient, read)').run();
   const seedRoles = [
@@ -1330,6 +1350,71 @@ async function handleMarketCancel(request, env, corsHeaders) {
   if (!listing) return json({ error: 'Angebot nicht gefunden.' }, 404, corsHeaders);
   await env.DB.prepare("UPDATE market_listings SET status = 'cancelled' WHERE id = ?").bind(id).run();
   await addInventory(env, user.username, listing.item_id, listing.quantity);
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function voiceUser(request, env) { return getAuthUser(request, env); }
+async function voiceBody(request) { try { return await request.json(); } catch (e) { return {}; } }
+async function voiceMembers(env, channelId) {
+  return (await env.DB.prepare('SELECT username, joined_at FROM voice_members WHERE channel_id = ? ORDER BY joined_at').bind(channelId).all()).results;
+}
+async function handleVoiceGet(request, env, corsHeaders) {
+  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const channels = (await env.DB.prepare('SELECT c.id, c.name, c.owner, c.max_users, c.is_open, c.created_at, COUNT(m.username) AS member_count FROM voice_channels c LEFT JOIN voice_members m ON m.channel_id = c.id GROUP BY c.id ORDER BY c.id DESC').all()).results;
+  for (const c of channels) c.members = await voiceMembers(env, c.id);
+  return json({ channels }, 200, corsHeaders);
+}
+async function handleVoiceCreate(request, env, corsHeaders) {
+  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const b = await voiceBody(request), name = String(b.name || '').trim(), max = Number(b.max_users), open = b.is_open !== false;
+  if (name.length < 2 || name.length > 32) return json({ error: 'Der Kanalname muss 2–32 Zeichen haben.' }, 400, corsHeaders);
+  if (!Number.isInteger(max) || max < 2 || max > 50) return json({ error: 'Die Kapazität muss zwischen 2 und 50 liegen.' }, 400, corsHeaders);
+  const result = await env.DB.prepare('INSERT INTO voice_channels (name, owner, max_users, is_open) VALUES (?, ?, ?, ?)').bind(name, user.username, max, open ? 1 : 0).run();
+  await env.DB.prepare('INSERT INTO voice_members (channel_id, username) VALUES (?, ?)').bind(result.meta.last_row_id, user.username).run();
+  return json({ success: true, channel_id: result.meta.last_row_id }, 201, corsHeaders);
+}
+async function handleVoiceJoin(request, env, corsHeaders) {
+  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const id = Number((await voiceBody(request)).channel_id), c = await env.DB.prepare('SELECT * FROM voice_channels WHERE id = ?').bind(id).first();
+  if (!c) return json({ error: 'Kanal nicht gefunden.' }, 404, corsHeaders);
+  const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
+  if (member) return json({ success: true }, 200, corsHeaders);
+  if (!c.is_open && c.owner !== user.username) return json({ error: 'Dieser Kanal ist geschlossen.' }, 403, corsHeaders);
+  const count = (await env.DB.prepare('SELECT COUNT(*) AS n FROM voice_members WHERE channel_id = ?').bind(id).first()).n;
+  if (count >= c.max_users) return json({ error: 'Der Kanal ist voll.' }, 409, corsHeaders);
+  await env.DB.prepare('INSERT INTO voice_members (channel_id, username) VALUES (?, ?)').bind(id, user.username).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+async function handleVoiceLeave(request, env, corsHeaders) {
+  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const id = Number((await voiceBody(request)).channel_id);
+  await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+async function handleVoiceSignal(request, env, corsHeaders) {
+  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const b = await voiceBody(request), id = Number(b.channel_id), to = String(b.to || ''), kind = String(b.kind || ''), payload = String(b.payload || '');
+  if (!id || !to || !['offer', 'answer', 'candidate'].includes(kind) || payload.length > 20000) return json({ error: 'Ungültiges Signal.' }, 400, corsHeaders);
+  const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
+  const recipient = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, to).first();
+  if (!member || !recipient) return json({ error: 'Nicht im Kanal.' }, 403, corsHeaders);
+  await env.DB.prepare('INSERT INTO voice_signals (channel_id, sender, recipient, kind, payload) VALUES (?, ?, ?, ?, ?)').bind(id, user.username, to, kind, payload).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+async function handleVoiceSignals(request, env, corsHeaders) {
+  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const u = new URL(request.url), id = Number(u.searchParams.get('channel_id')), after = Number(u.searchParams.get('after')) || 0;
+  const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
+  if (!member) return json({ error: 'Nicht im Kanal.' }, 403, corsHeaders);
+  const signals = (await env.DB.prepare('SELECT id, sender, kind, payload FROM voice_signals WHERE channel_id = ? AND recipient = ? AND id > ? ORDER BY id ASC LIMIT 100').bind(id, user.username, after).all()).results;
+  if (signals.length) await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id = ? AND recipient = ? AND id <= ?').bind(id, user.username, signals[signals.length - 1].id).run();
+  return json({ signals }, 200, corsHeaders);
+}
+async function handleVoiceClose(request, env, corsHeaders) {
+  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const id = Number((await voiceBody(request)).channel_id), c = await env.DB.prepare('SELECT owner FROM voice_channels WHERE id = ?').bind(id).first();
+  if (!c || c.owner !== user.username) return json({ error: 'Nur der Ersteller darf den Kanal schließen.' }, 403, corsHeaders);
+  await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id = ?').bind(id).run(); await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ?').bind(id).run(); await env.DB.prepare('DELETE FROM voice_channels WHERE id = ?').bind(id).run();
   return json({ success: true }, 200, corsHeaders);
 }
 
