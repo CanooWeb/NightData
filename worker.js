@@ -378,6 +378,12 @@ async function handleRegister(request, env, corsHeaders, settings) {
   if (username.length < 3) {
     return json({ error: 'Der Benutzername muss mindestens 3 Zeichen haben.' }, 400, corsHeaders);
   }
+  if (username.length > 24) {
+    return json({ error: 'Der Benutzername darf maximal 24 Zeichen haben.' }, 400, corsHeaders);
+  }
+  if (!/^[\p{L}\p{N}_.\- ]+$/u.test(username)) {
+    return json({ error: 'Der Benutzername darf nur Buchstaben, Zahlen, _ . - und Leerzeichen enthalten.' }, 400, corsHeaders);
+  }
   if (password.length < 8) {
     return json({ error: 'Das Passwort muss mindestens 8 Zeichen haben.' }, 400, corsHeaders);
   }
@@ -585,6 +591,17 @@ async function handleAdminChatDelete(request, env, corsHeaders) {
   try { body = await request.json(); } catch (err) {}
   const id = Number(body.id);
   if (!id) return json({ error: 'Keine Nachrichten-ID.' }, 400, corsHeaders);
+
+  const msg = await env.DB.prepare(
+    'SELECT m.author, u.role FROM chat_messages m LEFT JOIN users u ON u.username = m.author WHERE m.id = ?'
+  ).bind(id).first();
+  if (!msg) return json({ error: 'Nachricht nicht gefunden.' }, 404, corsHeaders);
+  if (msg.author && msg.author !== user.username) {
+    const targetUser = { role: msg.role || 'member' };
+    if (!canModerate(targetUser, user)) {
+      return json({ error: 'Keine Berechtigung, diese Nachricht zu löschen.' }, 403, corsHeaders);
+    }
+  }
 
   await env.DB.prepare('DELETE FROM chat_messages WHERE id = ?').bind(id).run();
   return json({ success: true }, 200, corsHeaders);
@@ -863,6 +880,9 @@ async function handleDmSend(request, env, corsHeaders) {
 
   const result = await env.DB.prepare('INSERT INTO dm_messages (sender, recipient, message) VALUES (?, ?, ?)').bind(me, to, message).run();
   const msg = (await env.DB.prepare(DM_JOIN + ' WHERE m.id = ?').bind(result.meta.last_row_id).first());
+
+  await env.DB.prepare('DELETE FROM dm_messages WHERE id < (SELECT COALESCE(MAX(id), 0) - 2000 FROM dm_messages)').run();
+
   return json({ success: true, message: msg }, 201, corsHeaders);
 }
 
@@ -1182,9 +1202,19 @@ async function handleAdminUserDelete(request, env, corsHeaders) {
     return json({ error: 'Founder können nur vom Founder selbst gelöscht werden.' }, 403, corsHeaders);
   }
 
+  const postFiles = (await env.DB.prepare('SELECT file_key FROM posts WHERE author = ?').bind(user.username).all()).results;
+  for (const p of postFiles) {
+    if (p.file_key) await destroyCloudinaryAsset(env, p.file_key);
+  }
+
   await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
   await env.DB.prepare('DELETE FROM posts WHERE author = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM discord_tickets WHERE author = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM chat_messages WHERE author = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM mutes WHERE username = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM friend_requests WHERE from_user = ? OR to_user = ?').bind(user.username, user.username).run();
+  await env.DB.prepare('DELETE FROM friends WHERE user_a = ? OR user_b = ?').bind(user.username, user.username).run();
+  await env.DB.prepare('DELETE FROM dm_messages WHERE sender = ? OR recipient = ?').bind(user.username, user.username).run();
   await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
 
   return json({ success: true }, 200, corsHeaders);

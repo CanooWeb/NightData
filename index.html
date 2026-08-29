@@ -547,6 +547,8 @@
     @media (max-width: 700px) {
       .chatpanel { right: 10px; left: 10px; width: auto; height: 45vh; top: auto; bottom: 12px; }
       .chatmin { right: 10px; bottom: 12px; top: auto; transform: none; }
+      .floatui .rankpill { bottom: calc(12px + 45vh + 50px); left: 10px; }
+      .floatui .floatui-admin { bottom: calc(12px + 45vh + 50px); right: 10px; top: auto; }
     }
     .chatpanel.hidden { display: none; }
     .hidden { display: none !important; }
@@ -649,7 +651,7 @@
     <form id="login-form" class="form active" onsubmit="handleLogin(event)">
       <div class="form-group">
         <label for="login-username">Benutzername</label>
-        <input type="text" id="login-username" required minlength="3" autocomplete="username" placeholder="Benutzername">
+        <input type="text" id="login-username" required minlength="3" maxlength="24" autocomplete="username" placeholder="Benutzername">
       </div>
       <div class="form-group">
         <label for="login-password">Passwort</label>
@@ -661,7 +663,7 @@
     <form id="register-form" class="form" onsubmit="handleRegister(event)">
       <div class="form-group">
         <label for="register-username">Benutzername</label>
-        <input type="text" id="register-username" required minlength="3" autocomplete="username" placeholder="Min. 3 Zeichen">
+        <input type="text" id="register-username" required minlength="3" maxlength="24" autocomplete="username" placeholder="3–24 Zeichen, A–Z, 0–9, _ . -">
       </div>
       <div class="form-group">
         <label for="register-password">Passwort</label>
@@ -1393,13 +1395,6 @@
       if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
     }
 
-    function stopDmTimers() {
-      if (dmTimer) { clearInterval(dmTimer); dmTimer = null; }
-      if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
-      dmThreadFriend = null;
-      dmLastId = 0;
-    }
-
     function friendAvatarHtml(u) {
       const color = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       if (u.avatar) return '<img class="c-av" src="' + escapeHtml(u.avatar) + '" alt="">';
@@ -1603,6 +1598,7 @@
           friendAvatarHtml(data.friend) + '<span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
           (data.friend.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
       }
+      if (dmLastId === 0) box.innerHTML = '';
       data.messages.forEach(function (m) {
         const isMe = m.sender === me;
         const el = box.querySelector('.dm-msg[data-mid="' + m.id + '"]');
@@ -1618,6 +1614,9 @@
           }
         }
       });
+      if (!data.messages.length && !box.querySelector('.dm-msg')) {
+        box.innerHTML = '<div class="empty">Noch keine Nachrichten – schreib die erste Privatnachricht.</div>';
+      }
     }
 
     async function sendDm() {
@@ -1846,24 +1845,35 @@
       }
     }
 
+    let feedAnnSig = null;
+    let feedTicketSig = null;
+
     function renderFeed(feed) {
       buildRoleColorMap(feed.roles);
       const anns = feed.announcements || [];
-      const zone = document.getElementById('bubblezone');
-      if (anns.length) {
-        zone.classList.remove('hidden');
-        document.getElementById('announceBubbles').innerHTML = anns.map(bubbleHtml).join('');
-      } else {
-        zone.classList.add('hidden');
-        document.getElementById('announceBubbles').innerHTML = '';
+      const annSig = anns.map(p => p.id + ':' + String(p.expires_at || '')).join('|');
+      if (annSig !== feedAnnSig) {
+        feedAnnSig = annSig;
+        const zone = document.getElementById('bubblezone');
+        if (anns.length) {
+          zone.classList.remove('hidden');
+          document.getElementById('announceBubbles').innerHTML = anns.map(bubbleHtml).join('');
+        } else {
+          zone.classList.add('hidden');
+          document.getElementById('announceBubbles').innerHTML = '';
+        }
       }
 
       const tickets = feed.tickets || [];
-      const meRole = getStoredUser().role;
-      const isStaff = meRole === 'founder' || meRole === 'admin' || meRole === 'moderator';
-      document.getElementById('ticketList').innerHTML = tickets.length
-        ? '<div class="ticketgrid">' + tickets.map(t => ticketHtml(t, isStaff)).join('') + '</div>'
-        : '<div class="empty">Keine Tickets vorhanden.</div>';
+      const tSig = tickets.map(t => t.id + ':' + t.status + ':' + t.author + ':' + t.discord_name).join('|');
+      if (tSig !== feedTicketSig) {
+        feedTicketSig = tSig;
+        const meRole = getStoredUser().role;
+        const isStaff = meRole === 'founder' || meRole === 'admin' || meRole === 'moderator';
+        document.getElementById('ticketList').innerHTML = tickets.length
+          ? '<div class="ticketgrid">' + tickets.map(t => ticketHtml(t, isStaff)).join('') + '</div>'
+          : '<div class="empty">Keine Tickets vorhanden.</div>';
+      }
     }
 
     async function loadFeed() {
@@ -2001,6 +2011,8 @@
     function doLogout() {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      feedAnnSig = null;
+      feedTicketSig = null;
       closeAdmin();
       closeProfile();
       closeDmOverlay();
@@ -2381,6 +2393,10 @@
       const password2 = document.getElementById('register-password2').value;
       if (password !== password2) {
         showMessage('register-message', 'Die Passwörter stimmen nicht überein.', 'error');
+        return;
+      }
+      if (!/^[\p{L}\p{N}_.\- ]+$/u.test(username)) {
+        showMessage('register-message', 'Der Benutzername darf nur Buchstaben, Zahlen, _ . - und Leerzeichen enthalten.', 'error');
         return;
       }
       const data = await api('/api/register', { username, password });
