@@ -89,6 +89,18 @@ export default {
       if (url.pathname === '/api/admin/security/clear' && request.method === 'POST') {
         return await handleAdminSecurityClear(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/roles' && request.method === 'GET') {
+        return await handleAdminRolesList(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/roles' && request.method === 'POST') {
+        return await handleAdminRoleCreate(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/roles/update' && request.method === 'POST') {
+        return await handleAdminRoleUpdate(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/roles/delete' && request.method === 'POST') {
+        return await handleAdminRoleDelete(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/admin/settings' && request.method === 'GET') {
         return await handleAdminSettingsGet(request, env, corsHeaders);
       }
@@ -169,6 +181,22 @@ async function ensureSchema(env) {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS custom_roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT NOT NULL DEFAULT '#9a6fd8',
+      builtin INTEGER NOT NULL DEFAULT 0
+    )
+  `).run();
+  const seedRoles = [
+    ['founder', '#7ae0e0', 1],
+    ['moderator', '#ffd166', 1],
+    ['member', '#9a6fd8', 1],
+  ];
+  for (const [name, color, builtin] of seedRoles) {
+    await env.DB.prepare('INSERT OR IGNORE INTO custom_roles (name, color, builtin) VALUES (?, ?, ?)').bind(name, color, builtin).run();
+  }
   initialized = true;
 }
 
@@ -319,12 +347,14 @@ async function handleFeed(request, env, corsHeaders, settings) {
   const tickets = (await env.DB.prepare(
     'SELECT id, author, discord_name, discord_id, info, status, created_at FROM discord_tickets ORDER BY id DESC LIMIT 100'
   ).all()).results;
+  const roles = (await env.DB.prepare('SELECT name, color FROM custom_roles ORDER BY id').all()).results;
 
   return json({
     announcements,
     highlights,
     submissions,
     tickets,
+    roles,
     me,
     config: {
       siteTitle: settings.site_title,
@@ -527,9 +557,10 @@ async function handleAdminUserRole(request, env, corsHeaders) {
   let body = {};
   try { body = await request.json(); } catch (err) {}
   const id = Number(body.id);
-  const role = ['founder', 'moderator', 'member'].includes(body.role) ? body.role : 'member';
+  const role = String(body.role || '').trim().toLowerCase();
 
   if (!id) return json({ error: 'Ungültige ID.' }, 400, corsHeaders);
+  if (!(await roleExists(role, env))) return json({ error: 'Ungültige Rolle.' }, 400, corsHeaders);
 
   const target = await env.DB.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first();
   if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
@@ -663,6 +694,95 @@ async function handleAdminSettingsSet(request, env, corsHeaders) {
 }
 
 const PBKDF2_ITERATIONS = 100000;
+
+async function roleExists(role, env) {
+  if (['founder', 'moderator', 'member'].includes(role)) return true;
+  const r = await env.DB.prepare('SELECT id FROM custom_roles WHERE name = ?').bind(role).first();
+  return !!r;
+}
+
+async function handleAdminRolesList(request, env, corsHeaders) {
+  const founder = await isFounder(request, env);
+  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  const roles = (await env.DB.prepare('SELECT id, name, color, builtin FROM custom_roles ORDER BY id').all()).results;
+  return json({ roles }, 200, corsHeaders);
+}
+
+async function handleAdminRoleCreate(request, env, corsHeaders) {
+  const founder = await isFounder(request, env);
+  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const name = String(body.name || '').trim().toLowerCase();
+  const color = /^#[0-9a-fA-F]{6}$/.test(String(body.color || '')) ? String(body.color) : '#9a6fd8';
+
+  if (name.length < 2 || name.length > 24) return json({ error: 'Der Name muss 2–24 Zeichen haben.' }, 400, corsHeaders);
+  if (!/^[a-z0-9_\- ]+$/.test(name)) return json({ error: 'Nur Buchstaben, Zahlen, _ und - erlaubt.' }, 400, corsHeaders);
+  const existing = await env.DB.prepare('SELECT id FROM custom_roles WHERE name = ?').bind(name).first();
+  if (existing) return json({ error: 'Diese Rolle existiert bereits.' }, 409, corsHeaders);
+
+  const result = await env.DB.prepare('INSERT INTO custom_roles (name, color, builtin) VALUES (?, ?, 0)').bind(name, color).run();
+  return json({ success: true, id: result.meta.last_row_id }, 201, corsHeaders);
+}
+
+async function handleAdminRoleUpdate(request, env, corsHeaders) {
+  const founder = await isFounder(request, env);
+  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const id = Number(body.id);
+  if (!id) return json({ error: 'Ungültige ID.' }, 400, corsHeaders);
+
+  const role = await env.DB.prepare('SELECT * FROM custom_roles WHERE id = ?').bind(id).first();
+  if (!role) return json({ error: 'Rolle nicht gefunden.' }, 404, corsHeaders);
+
+  if (role.builtin) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(String(body.color || ''))) return json({ error: 'Ungültige Farbe.' }, 400, corsHeaders);
+    await env.DB.prepare('UPDATE custom_roles SET color = ? WHERE id = ?').bind(String(body.color), id).run();
+    return json({ success: true }, 200, corsHeaders);
+  }
+
+  let name = role.name;
+  if (body.name !== undefined) {
+    name = String(body.name).trim().toLowerCase();
+    if (name.length < 2 || name.length > 24) return json({ error: 'Der Name muss 2–24 Zeichen haben.' }, 400, corsHeaders);
+    if (!/^[a-z0-9_\- ]+$/.test(name)) return json({ error: 'Nur Buchstaben, Zahlen, _ und - erlaubt.' }, 400, corsHeaders);
+    const clash = await env.DB.prepare('SELECT id FROM custom_roles WHERE name = ? AND id != ?').bind(name, id).first();
+    if (clash) return json({ error: 'Diese Rolle existiert bereits.' }, 409, corsHeaders);
+  }
+  let color = role.color;
+  if (body.color !== undefined) {
+    if (!/^[0-9a-fA-F]{6}$/.test(String(body.color).replace('#', ''))) return json({ error: 'Ungültige Farbe.' }, 400, corsHeaders);
+    color = String(body.color);
+  }
+
+  await env.DB.prepare('UPDATE custom_roles SET name = ?, color = ? WHERE id = ?').bind(name, color, id).run();
+  if (name !== role.name) {
+    await env.DB.prepare('UPDATE users SET role = ? WHERE role = ?').bind(name, role.name).run();
+  }
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleAdminRoleDelete(request, env, corsHeaders) {
+  const founder = await isFounder(request, env);
+  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const id = Number(body.id);
+  if (!id) return json({ error: 'Ungültige ID.' }, 400, corsHeaders);
+
+  const role = await env.DB.prepare('SELECT * FROM custom_roles WHERE id = ?').bind(id).first();
+  if (!role) return json({ error: 'Rolle nicht gefunden.' }, 404, corsHeaders);
+  if (role.builtin) return json({ error: 'Diese Rolle kann nicht gelöscht werden.' }, 400, corsHeaders);
+
+  await env.DB.prepare('UPDATE users SET role = ? WHERE role = ?').bind('member', role.name).run();
+  await env.DB.prepare('DELETE FROM custom_roles WHERE id = ?').bind(id).run();
+  return json({ success: true }, 200, corsHeaders);
+}
 
 async function hashPassword(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));

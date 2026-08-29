@@ -207,6 +207,8 @@
     .role-select { padding: 5px 8px; border: 1px solid #2a2d3a; border-radius: 6px; font-size: 12px; font-family: 'Share Tech Mono',monospace; color: #b18bf0; background: rgba(10,11,16,0.7); cursor: pointer; }
     .role-select.founder { color: #7ae0e0; border-color: rgba(122,224,224,0.4); }
     .role-select.moderator { color: #ffd166; border-color: rgba(255,209,102,0.4); }
+    .builtin-mark { font-size: 10px; color: #4b3d66; letter-spacing: 1px; }
+    .adm-roles-table input[type="color"] { width: 48px; height: 30px; padding: 0; border: 1px solid #2a2d3a; border-radius: 6px; background: rgba(10,11,16,0.7); cursor: pointer; }
 
     .btn { padding: 8px 16px; border: 1px solid rgba(139,63,240,0.6); border-radius: 8px; background: rgba(124,92,191,0.15); color: #c9a4ff; font-family: 'Orbitron',sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: filter .25s, box-shadow .25s; }
     .btn:hover { filter: brightness(1.3); box-shadow: 0 0 14px rgba(139,63,240,0.4); }
@@ -526,6 +528,7 @@
         <div class="adm-tabs">
           <button class="act" data-found data-tab="adm-overview" onclick="switchAdmTab('adm-overview')">System</button>
           <button data-found data-tab="adm-users" onclick="switchAdmTab('adm-users')">Nutzer</button>
+          <button data-found data-tab="adm-roles" onclick="switchAdmTab('adm-roles')">Rollen</button>
           <button data-tab="adm-posts" onclick="switchAdmTab('adm-posts')">Nachrichten + Inhalte</button>
           <button data-tab="adm-security" onclick="switchAdmTab('adm-security')">Sicherheit</button>
           <button data-found data-tab="adm-settings" onclick="switchAdmTab('adm-settings')">Einstellungen</button>
@@ -545,6 +548,25 @@
         <div class="adm-tab" id="adm-users" data-found>
           <h3>Nutzer-Verwaltung</h3>
           <div id="admUsersList"><div class="empty">Lade…</div></div>
+        </div>
+
+        <div class="adm-tab" id="adm-roles" data-found>
+          <h3>Rollen verwalten</h3>
+          <div class="wide-form" style="margin-bottom:22px;">
+            <form onsubmit="adminCreateRole(event)">
+              <div class="row">
+                <label for="role-new-name">Name der neuen Rolle</label>
+                <input type="text" id="role-new-name" placeholder="z.B. Supporter, VIP, Streamer" maxlength="24">
+              </div>
+              <div class="row">
+                <label for="role-new-color">Farbe</label>
+                <input type="color" id="role-new-color" value="#ffd166">
+              </div>
+              <button type="submit">Rolle erstellen</button>
+              <div id="adm-roles-msg" class="message"></div>
+            </form>
+          </div>
+          <div id="admRolesList"><div class="empty">Lade…</div></div>
         </div>
 
         <div class="adm-tab" id="adm-posts">
@@ -789,6 +811,30 @@
     }
 
     let maxImageMb = 10;
+    let roleColorMap = {
+      founder: '#7ae0e0',
+      moderator: '#ffd166',
+      member: '#9a6fd8'
+    };
+
+    function buildRoleColorMap(roles) {
+      if (!roles || !roles.length) return;
+      roleColorMap = {};
+      roles.forEach(function (r) { roleColorMap[r.name] = r.color; });
+      applyBadgeColor();
+    }
+
+    function applyBadgeColor(user) {
+      const u = user || getStoredUser();
+      const badge = document.getElementById('topRole');
+      if (!badge) return;
+      const role = (u.role || 'member').toLowerCase();
+      const color = roleColorMap[role] || roleColorMap.member || '#9a6fd8';
+      badge.textContent = role.toUpperCase();
+      badge.style.color = color;
+      badge.style.borderColor = color;
+      badge.style.textShadow = '0 0 8px ' + color;
+    }
 
     function bubbleHtml(post) {
       const media = post.file_key ? '<img src="' + escapeHtml(post.file_key) + '" alt="Bild" loading="lazy">' : '';
@@ -838,6 +884,7 @@
     }
 
     function renderFeed(feed) {
+      buildRoleColorMap(feed.roles);
       const anns = feed.announcements || [];
       const zone = document.getElementById('bubblezone');
       if (anns.length) {
@@ -873,13 +920,9 @@
       document.getElementById('main').classList.add('active');
       document.getElementById('floatui').classList.remove('hidden');
       document.getElementById('topUsername').textContent = escapeHtml(user.username).toUpperCase();
-      const badge = document.getElementById('topRole');
-      const roleMap = { founder: ['FOUNDER', 'founder'], moderator: ['MODERATOR', 'moderator'], member: ['LIMITED', 'member'] };
-      const rInfo = roleMap[user.role] || roleMap.member;
       const isStaff = user.role === 'founder' || user.role === 'moderator';
-      badge.textContent = rInfo[0];
-      badge.className = 'role-badge ' + rInfo[1];
       document.getElementById('btnAdmin').classList.toggle('show', isStaff);
+      applyBadgeColor(user);
       closeAdmin();
       loadFeed();
     }
@@ -1033,6 +1076,7 @@
       document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('act', t.id === name));
       if (name === 'adm-overview') loadAdminOverview();
       if (name === 'adm-users') loadAdminUsers();
+      if (name === 'adm-roles') loadAdminRoles();
       if (name === 'adm-posts') loadAdminPosts();
       if (name === 'adm-security') loadAdminSecurity();
       if (name === 'adm-settings') loadAdminSettings();
@@ -1056,16 +1100,20 @@
     }
 
     async function loadAdminUsers() {
-      const data = await apiGet('/api/admin/users', getToken());
+      const [data, rolesData] = await Promise.all([apiGet('/api/admin/users', getToken()), apiGet('/api/admin/roles', getToken())]);
       if (!data.users) return;
       const me = getStoredUser();
+      const roles = rolesData.roles || [];
       const rows = data.users.map(u => {
         const self = me && me.id === u.id;
+        const options = roles.map(r => {
+          const color = r.color || '#9a6fd8';
+          const label = r.name.charAt(0).toUpperCase() + r.name.slice(1);
+          return '<option value="' + escapeHtml(r.name) + '"' + (r.name === u.role ? ' selected' : '') + ' style="color:' + escapeHtml(color) + '">' + escapeHtml(label) + '</option>';
+        }).join('');
         const roleSel = self ? '<span style="color:#7ae0e0">DU</span>' : '' +
-          '<select class="role-select ' + escapeHtml(u.role) + '" ' + (self ? 'disabled' : '') + ' onchange="adminSetRole(' + u.id + ',this.value)">' +
-          '<option value="founder"' + (u.role === 'founder' ? ' selected' : '') + '>Founder</option>' +
-          '<option value="moderator"' + (u.role === 'moderator' ? ' selected' : '') + '>Moderator</option>' +
-          '<option value="member"' + (u.role === 'member' ? ' selected' : '') + '>Member</option>' +
+          '<select class="role-select" ' + (self ? 'disabled' : '') + ' onchange="adminSetRole(' + u.id + ',this.value)">' +
+          options +
           '</select>';
         const roleBtn = self
           ? ''
@@ -1084,10 +1132,64 @@
     async function adminSetRole(id, role) {
       await api('/api/admin/users/role', { id, role }, getToken());
       loadAdminUsers();
+      loadFeed();
     }
     async function adminSetBan(id, banned) {
       await api('/api/admin/users/ban', { id, banned }, getToken());
       loadAdminUsers();
+    }
+
+    async function loadAdminRoles() {
+      const data = await apiGet('/api/admin/roles', getToken());
+      if (!data.roles) return;
+      const rows = data.roles.map(r => {
+        const color = r.color || '#9a6fd8';
+        const deleteBtn = r.builtin ? '' : '<button class="btn mini danger" onclick="adminDeleteRole(' + r.id + ',\'' + escapeHtml(r.name) + '\')">Löschen</button>';
+        return '<tr>' +
+          '<td>' + (r.builtin ? '<span class="builtin-mark">[SYSTEM]</span> ' : '') + escapeHtml(r.name) + '</td>' +
+          '<td><input type="color" id="role-color-' + r.id + '" value="' + escapeHtml(color) + '" title="' + escapeHtml(color) + '"></td>' +
+          '<td><span class="kick">' +
+          '<button class="btn mini ok" onclick="adminUpdateRole(' + r.id + ')">Farbe speichern</button>' +
+          deleteBtn +
+          '</span></td>' +
+          '</tr>';
+      }).join('');
+      document.getElementById('admRolesList').innerHTML =
+        '<table class="admtable adm-roles-table"><tr><th>Rolle</th><th>Farbe</th><th>Aktion</th></tr>' + rows + '</table>';
+    }
+
+    async function adminCreateRole(e) {
+      e.preventDefault();
+      const name = document.getElementById('role-new-name').value.trim();
+      const color = document.getElementById('role-new-color').value;
+      if (!name) { showMessage('adm-roles-msg', 'Bitte einen Namen angeben.', 'error'); return; }
+      const data = await api('/api/admin/roles', { name, color }, getToken());
+      showMessage('adm-roles-msg', data.success ? 'Rolle erstellt.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      if (data.success) {
+        document.getElementById('role-new-name').value = '';
+        loadAdminRoles();
+        loadFeed();
+      }
+    }
+
+    async function adminUpdateRole(id) {
+      const color = document.getElementById('role-color-' + id).value;
+      const data = await api('/api/admin/roles/update', { id, color }, getToken());
+      showMessage('adm-roles-msg', data.success ? 'Farbe gespeichert.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      if (data.success) {
+        loadAdminRoles();
+        loadFeed();
+      }
+    }
+
+    async function adminDeleteRole(id, name) {
+      if (!confirm('Rolle "' + name + '" wirklich löschen?\nNutzer mit dieser Rolle werden zu "Member".')) return;
+      const data = await api('/api/admin/roles/delete', { id }, getToken());
+      showMessage('adm-roles-msg', data.success ? 'Rolle gelöscht.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      if (data.success) {
+        loadAdminRoles();
+        loadFeed();
+      }
     }
 
     async function adminDeleteUser(id, username) {
