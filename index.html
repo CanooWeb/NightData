@@ -484,6 +484,9 @@
     .voice-channel-info { flex: 1; min-width: 0; }
     .voice-channel-name { color: #e3c9ff; font: 700 14px 'Orbitron',sans-serif; overflow-wrap: anywhere; }
     .voice-channel-meta { color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; margin-top: 4px; }
+    .voice-members { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+    .voice-member { padding: 4px 7px; border: 1px solid rgba(122,224,224,.25); border-radius: 6px; color: #b9a8d8; font: 10px 'Share Tech Mono',monospace; }
+    .voice-member.me { color: #7ae0e0; border-color: rgba(122,224,224,.6); }
     .voice-live { color: #7bd389; text-shadow: 0 0 8px rgba(123,211,137,.7); }
     @media (max-width: 700px) { .voiceoverlay { padding: 12px 10px 70px; } .voice-create { grid-template-columns: 1fr 1fr; } .voice-create button { grid-column: 1 / -1; } .voice-channel { align-items: flex-start; flex-wrap: wrap; } }
     @media (max-width: 700px) { .floatui-market { left: 10px; top: 87px; } .market-form { grid-template-columns: 1fr; } .market-form .market-submit { grid-column: auto; } }
@@ -1549,26 +1552,32 @@
     let voiceChannelId = null;
     let voiceStream = null;
     let voicePollTimer = null;
+    let voiceUiTimer = null;
+    let voiceChannelTimer = null;
     let voiceSignalId = 0;
+    let voiceChannelsState = [];
+    let voiceMuted = false;
     const voicePeers = {};
 
     function toggleVoiceOverlay() {
       const overlay = document.getElementById('voiceOverlay');
       overlay.classList.toggle('show');
-      if (overlay.classList.contains('show')) loadVoiceChannels();
-      else if (voiceChannelId) leaveVoiceChannel();
+      if (overlay.classList.contains('show')) { loadVoiceChannels(); if (!voiceUiTimer) voiceUiTimer = setInterval(function () { renderVoiceChannels(voiceChannelsState); }, 1000); if (!voiceChannelTimer) voiceChannelTimer = setInterval(loadVoiceChannels, 2000); }
+      else { if (voiceUiTimer) { clearInterval(voiceUiTimer); voiceUiTimer = null; } if (voiceChannelTimer) { clearInterval(voiceChannelTimer); voiceChannelTimer = null; } if (voiceChannelId) leaveVoiceChannel(); }
     }
     async function loadVoiceChannels() {
       const data = await apiGet('/api/voice', getToken());
-      if (data && Array.isArray(data.channels)) renderVoiceChannels(data.channels);
+      if (data && Array.isArray(data.channels)) { voiceChannelsState = data.channels; renderVoiceChannels(data.channels); }
     }
+    function voiceDuration(value) { const ms = Date.parse(String(value || '').replace(' ', 'T') + 'Z'); if (!Number.isFinite(ms)) return 'gerade eben'; const sec = Math.max(0, Math.floor((Date.now() - ms) / 1000)); return sec < 60 ? sec + 's' : Math.floor(sec / 60) + 'm ' + (sec % 60) + 's'; }
     function renderVoiceChannels(channels) {
       const me = getStoredUser().username, box = document.getElementById('voiceChannels');
       box.innerHTML = channels.length ? channels.map(function (c) {
         const joined = c.members.some(function (m) { return m.username === me; });
-        const action = joined ? '<button class="btn mini danger" onclick="leaveVoiceChannel()">Verlassen</button>' : '<button class="btn mini ok" onclick="joinVoiceChannel(' + c.id + ')">Beitreten</button>';
+        const action = joined ? '<button class="btn mini danger" onclick="leaveVoiceChannel()">Verlassen</button>' + '<button class="btn mini" onclick="toggleVoiceMute()">' + (voiceMuted ? 'Mikro an' : 'Stumm') + '</button>' : '<button class="btn mini ok" onclick="joinVoiceChannel(' + c.id + ')">Beitreten</button>';
         const owner = c.owner === me ? '<button class="btn mini danger" onclick="closeVoiceChannel(' + c.id + ')">Schließen</button>' : '';
-        return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + (c.is_open ? 'OFFEN' : 'GESCHLOSSEN') + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div></div>' + action + owner + '</div>';
+        const members = c.members.map(function (m) { return '<span class="voice-member' + (m.username === me ? ' me' : '') + '">' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + '</span>'; }).join('');
+        return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + (c.is_open ? 'OFFEN' : 'GESCHLOSSEN') + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div><div class="voice-members">' + (members || '<span class="voice-member">Noch niemand</span>') + '</div></div>' + action + owner + '</div>';
       }).join('') : '<div class="empty">Noch keine Sprachkanäle.</div>';
     }
     async function createVoiceChannel() {
@@ -1583,6 +1592,7 @@
       const data = await api('/api/voice/join', { channel_id: id }, getToken());
       if (!data.success) { voiceStream.getTracks().forEach(function (t) { t.stop(); }); voiceStream = null; showMessage('voice-msg', data.error || 'Beitritt fehlgeschlagen.', 'error'); return; }
       voiceChannelId = id; voiceSignalId = 0; document.getElementById('voiceStatus').textContent = '● VERBUNDEN';
+      voiceMuted = false;
       startVoicePolling();
       const rooms = await apiGet('/api/voice', getToken());
       const room = rooms.channels && rooms.channels.find(function (c) { return c.id === id; });
@@ -1597,6 +1607,7 @@
       voiceStream = null; voiceChannelId = null; if (voicePollTimer) clearInterval(voicePollTimer); voicePollTimer = null;
       document.getElementById('voiceStatus').textContent = '● BEREIT'; loadVoiceChannels();
     }
+    function toggleVoiceMute() { voiceMuted = !voiceMuted; if (voiceStream) voiceStream.getAudioTracks().forEach(function (track) { track.enabled = !voiceMuted; }); renderVoiceChannels(voiceChannelsState); }
     async function closeVoiceChannel(id) { if (!confirm('Diesen Sprachkanal schließen?')) return; await api('/api/voice/close', { channel_id: id }, getToken()); if (voiceChannelId === id) leaveVoiceChannel(); else loadVoiceChannels(); }
     function startVoicePolling() { if (voicePollTimer) clearInterval(voicePollTimer); voicePollTimer = setInterval(pollVoiceSignals, 700); pollVoiceSignals(); }
     async function voiceSignal(to, kind, value) { await api('/api/voice/signal', { channel_id: voiceChannelId, to, kind, payload: JSON.stringify(value) }, getToken()); }
@@ -1687,7 +1698,7 @@
       if (!tip.getAttribute('data-normal')) tip.setAttribute('data-normal', tip.textContent);
       document.getElementById('chatMsgs').innerHTML = '<div class="empty">Verbinde…</div>';
       pollChat();
-      chatTimer = setInterval(pollChat, 2000);
+      chatTimer = setInterval(pollChat, 800);
     }
 
     function stopChatPolling() {
@@ -1787,7 +1798,7 @@
       backDmThread();
       loadDmAll();
       if (dmTimer) clearInterval(dmTimer);
-      dmTimer = setInterval(loadDmAll, 3000);
+      dmTimer = setInterval(loadDmAll, 1500);
     }
 
     function closeDmOverlay() {
@@ -2261,7 +2272,7 @@
       document.getElementById('dmThreadName').innerHTML = '';
       pollDmThread();
       if (dmThreadTimer) clearInterval(dmThreadTimer);
-      dmThreadTimer = setInterval(pollDmThread, 2000);
+      dmThreadTimer = setInterval(pollDmThread, 1000);
     }
 
     function backDmThread() {
@@ -2695,10 +2706,10 @@
       updateDmSoundBtn();
       if (dmUnreadTimer) clearInterval(dmUnreadTimer);
       pollDmUnread();
-      dmUnreadTimer = setInterval(pollDmUnread, 3000);
+       dmUnreadTimer = setInterval(pollDmUnread, 1500);
       if (reqUnreadTimer) clearInterval(reqUnreadTimer);
       pollReqUnread();
-      reqUnreadTimer = setInterval(pollReqUnread, 3000);
+       reqUnreadTimer = setInterval(pollReqUnread, 1500);
     }
 
     function openAdmin() {
@@ -3284,7 +3295,7 @@
         if (document.getElementById('main').classList.contains('active')) {
           loadFeed();
         }
-      }, 5000);
+      }, 2000);
     })();
   </script>
 </body>
