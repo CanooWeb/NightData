@@ -157,6 +157,15 @@ export default {
       if (url.pathname === '/api/admin/chest/grant-all' && request.method === 'POST') {
         return await handleAdminChestGrantAll(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/chest/clear-self' && request.method === 'POST') {
+        return await handleAdminChestClearSelf(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/chest/clear-user' && request.method === 'POST') {
+        return await handleAdminChestClearUser(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/chest/clear-all' && request.method === 'POST') {
+        return await handleAdminChestClearAll(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/inventory/equip' && request.method === 'POST') {
         return await handleInventoryEquip(request, env, corsHeaders);
       }
@@ -1134,6 +1143,43 @@ async function handleAdminChestGrantAll(request, env, corsHeaders) {
     ).bind(admin.username, item.id).run();
   }
   return json({ success: true, count: COSMETIC_ITEMS.length }, 200, corsHeaders);
+}
+
+async function clearChestData(env, username) {
+  await env.DB.prepare('DELETE FROM inventory WHERE username = ?').bind(username).run();
+  await env.DB.prepare('DELETE FROM chest_opens WHERE username = ?').bind(username).run();
+  await env.DB.prepare('DELETE FROM chest_credits WHERE username = ?').bind(username).run();
+  await env.DB.prepare('UPDATE users SET glow_item = NULL, color_item = NULL WHERE username = ?').bind(username).run();
+}
+
+async function handleAdminChestClearSelf(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  await clearChestData(env, admin.username);
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleAdminChestClearUser(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const username = String(body.username || '').trim();
+  if (!username) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+  const target = await env.DB.prepare('SELECT username FROM users WHERE username = ?').bind(username).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  await clearChestData(env, username);
+  return json({ success: true, username }, 200, corsHeaders);
+}
+
+async function handleAdminChestClearAll(request, env, corsHeaders) {
+  const founder = await isFounder(request, env);
+  if (!founder) return json({ error: 'Nur Founder dürfen das gesamte Reward-System zurücksetzen.' }, 403, corsHeaders);
+  await env.DB.prepare('DELETE FROM inventory').run();
+  await env.DB.prepare('DELETE FROM chest_opens').run();
+  await env.DB.prepare('DELETE FROM chest_credits').run();
+  await env.DB.prepare('UPDATE users SET glow_item = NULL, color_item = NULL').run();
+  return json({ success: true }, 200, corsHeaders);
 }
 
 async function handleInventoryEquip(request, env, corsHeaders) {

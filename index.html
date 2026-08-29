@@ -871,7 +871,20 @@
             </div>
             <button class="btn ok" onclick="adminGrantChests()">Kisten verschenken</button>
             <button class="btn" onclick="adminGrantAllItems()">Alle Inhalte für mich freischalten</button>
+            <button class="btn danger" onclick="adminClearSelfChestData()">Meine Kisten &amp; Rewards löschen</button>
             <div id="adm-chest-msg" class="message"></div>
+          </div>
+          <div class="wide-form" style="margin-bottom:22px;">
+            <div class="row">
+              <label for="chest-clear-user">Rewards eines Nutzers löschen</label>
+              <input type="text" id="chest-clear-user" placeholder="Nutzername" maxlength="24">
+            </div>
+            <button class="btn danger" onclick="adminClearUserChestData()">Nutzer-Kisten &amp; Rewards löschen</button>
+          </div>
+          <div class="wide-form" data-founder>
+            <h3>Founder-Bereich</h3>
+            <p class="case-status">Setzt Kisten, Guthaben, Inventar und Ausrüstung aller Nutzer zurück.</p>
+            <button class="btn danger" onclick="adminClearAllChestData()">Komplettes Reward-System löschen</button>
           </div>
         </div>
 
@@ -2409,6 +2422,8 @@
       document.getElementById('main').classList.add('blur');
       const isModerator = getStoredUser().role === 'moderator';
       document.querySelectorAll('[data-found]').forEach(function (t) { t.classList.toggle('hidden', isModerator); });
+      const isFounder = getStoredUser().role === 'founder';
+      document.querySelectorAll('[data-founder]').forEach(function (t) { t.classList.toggle('hidden', !isFounder); });
       if (isModerator) {
         switchAdmTab('adm-posts');
       } else {
@@ -2736,6 +2751,34 @@
         ? 'Alle ' + data.count + ' Kisteninhalte wurden für dich freigeschaltet.'
         : (data.error || 'Fehler beim Freischalten.'), data.success ? 'success' : 'error');
       if (data.success && document.getElementById('caseOverlay').classList.contains('show')) loadCase();
+    }
+
+    async function adminClearSelfChestData() {
+      if (!confirm('Deine Kisten, Rewards und Ausrüstung wirklich löschen?')) return;
+      const data = await api('/api/admin/chest/clear-self', {}, getToken());
+      showMessage('adm-chest-msg', data.success ? 'Deine Kisten und Rewards wurden gelöscht.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      if (data.success) {
+        localStorage.removeItem('user');
+        const me = await apiGet('/api/me', getToken());
+        if (me.user) { localStorage.setItem('user', JSON.stringify(me.user)); updateRankPill(me.user); applyWebsiteTheme(me.user); }
+        loadCase();
+      }
+    }
+
+    async function adminClearUserChestData() {
+      const username = document.getElementById('chest-clear-user').value.trim();
+      if (!username || !confirm('Kisten, Rewards und Ausrüstung von "' + username + '" wirklich löschen?')) return;
+      const data = await api('/api/admin/chest/clear-user', { username }, getToken());
+      showMessage('adm-chest-msg', data.success ? 'Rewards von ' + username + ' wurden gelöscht.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      if (data.success) document.getElementById('chest-clear-user').value = '';
+    }
+
+    async function adminClearAllChestData() {
+      if (!confirm('ALLE Kisten, Rewards und Ausrüstungen ALLER Nutzer endgültig löschen?')) return;
+      if (!confirm('Dieser Founder-Reset kann nicht rückgängig gemacht werden. Wirklich fortfahren?')) return;
+      const data = await api('/api/admin/chest/clear-all', {}, getToken());
+      showMessage('adm-chest-msg', data.success ? 'Das komplette Reward-System wurde zurückgesetzt.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      if (data.success) loadCase();
     }
 
     async function loadAdminRoles() {
