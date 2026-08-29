@@ -71,6 +71,9 @@ export default {
       if (url.pathname === '/api/admin/users/ban' && request.method === 'POST') {
         return await handleAdminUserBan(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/users/delete' && request.method === 'POST') {
+        return await handleAdminUserDelete(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/admin/posts' && request.method === 'GET') {
         return await handleAdminPosts(request, env, corsHeaders);
       }
@@ -539,6 +542,27 @@ async function handleAdminUserBan(request, env, corsHeaders) {
   if (banned) {
     await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
   }
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleAdminUserDelete(request, env, corsHeaders) {
+  const founder = await isFounder(request, env);
+  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const id = Number(body.id);
+  if (!id) return json({ error: 'Ungültige ID.' }, 400, corsHeaders);
+
+  const user = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(id).first();
+  if (!user) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  if (user.id === founder.id) return json({ error: 'Du kannst dich nicht selbst löschen.' }, 400, corsHeaders);
+
+  await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
+  await env.DB.prepare('DELETE FROM posts WHERE author = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM discord_tickets WHERE author = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+
   return json({ success: true }, 200, corsHeaders);
 }
 

@@ -1019,8 +1019,11 @@
         const self = me && me.id === u.id;
         const roleBtn = self
           ? '<span style="color:#7ae0e0">DU</span>'
-          : '<span class="kick"><button class="btn mini" onclick="adminSetRole(' + u.id + ',\'' + (u.role === 'founder' ? 'member' : 'founder') + '\')">' + (u.role === 'founder' ? '→ Member' : '→ Founder') + '</button>' +
-            '<button class="btn mini ' + (u.banned ? 'ok' : 'danger') + '" onclick="adminSetBan(' + u.id + ',' + (u.banned ? 0 : 1) + ')">' + (u.banned ? 'Entsperren' : 'Sperren') + '</button></span>';
+          : '<span class="kick">' +
+            '<button class="btn mini" onclick="adminSetRole(' + u.id + ',\'' + (u.role === 'founder' ? 'member' : 'founder') + '\')">' + (u.role === 'founder' ? '→ Member' : '→ Founder') + '</button>' +
+            '<button class="btn mini ' + (u.banned ? 'ok' : 'danger') + '" onclick="adminSetBan(' + u.id + ',' + (u.banned ? 0 : 1) + ')">' + (u.banned ? 'Entsperren' : 'Sperren') + '</button>' +
+            '<button class="btn mini danger" onclick="adminDeleteUser(' + u.id + ',\'' + escapeHtml(u.username) + '\')">Löschen</button>' +
+            '</span>';
         return '<tr><td>' + escapeHtml(u.username) + (u.banned ? ' <span class="banned-mark">[GESPERRT]</span>' : '') + '</td>' +
           '<td>' + (u.role === 'founder' ? '<span style="color:#7ae0e0">FOUNDER</span>' : 'MEMBER') + '</td>' +
           '<td>' + escapeHtml(fmtTime(u.created_at)) + '</td><td>' + roleBtn + '</td></tr>';
@@ -1036,6 +1039,18 @@
     async function adminSetBan(id, banned) {
       await api('/api/admin/users/ban', { id, banned }, getToken());
       loadAdminUsers();
+    }
+
+    async function adminDeleteUser(id, username) {
+      if (!confirm('Benutzer "' + username + '" wirklich löschen?\nAlle Beiträge, Tickets und Sessions werden entfernt.')) return;
+      if (!confirm('Wirklich löschen? Das kann nicht rückgängig gemacht werden.')) return;
+      const data = await api('/api/admin/users/delete', { id }, getToken());
+      if (data.success) {
+        loadAdminUsers();
+        loadAdminOverview();
+      } else {
+        alert(data.error || 'Fehler beim Löschen.');
+      }
     }
 
     function kindLabel(kind) {
