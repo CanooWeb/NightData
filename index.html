@@ -462,7 +462,9 @@
     .case-button-base { bottom: 1px; height: 22px; border-radius: 4px 4px 8px 8px; }
     .case-button-lid { top: 3px; height: 10px; border-radius: 7px 7px 3px 3px; transform-origin: bottom center; transition: transform .45s cubic-bezier(.2,.8,.2,1); z-index: 2; }
     .case-button-lock { position: absolute; z-index: 3; left: 19px; top: 16px; width: 7px; height: 9px; border: 2px solid #ffd166; border-radius: 2px; box-shadow: 0 0 7px #ffd166; }
+    .case-button-count { position: absolute; top: -9px; right: -13px; min-width: 19px; height: 19px; padding: 0 4px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #ff4d6d; color: #fff; border: 1px solid #ffb3c0; box-shadow: 0 0 10px rgba(255,77,109,0.8); font: 700 11px 'Share Tech Mono', monospace; }
     .case-button-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; color: #7ae0e0; }
+    .case-button-timer { min-height: 11px; color: #9a6fd8; font: 9px 'Share Tech Mono', monospace; letter-spacing: .5px; }
     .case-button:hover .case-button-art { animation: chestSpin .7s ease-in-out; }
     .case-button:hover .case-button-lid, .case-button.opening .case-button-lid { transform: rotateX(-115deg) translateY(-2px); }
     .case-button.opening .case-button-art { animation: chestOpen .9s ease-in-out; }
@@ -760,8 +762,9 @@
     <button class="btn ok adminonly floatui-admin" id="btnAdmin" onclick="openAdmin()">◈ Admin</button>
     <button class="btn mini floatui-friends" id="btnFriends" onclick="toggleDmOverlay()" title="Freunde & Nachrichten">&#9679; <span id="reqBadge" class="badge reqbadge hidden" title="Offene Freundschaftsanfragen">+</span><span id="dmBadge" class="badge hidden">0</span> Freunde</button>
     <button class="btn mini floatui-cases case-button" id="btnCases" onclick="toggleCaseOverlay()" title="Kisten-Opening – 1× alle 24 Stunden">
-      <span class="case-button-art" aria-hidden="true"><span class="case-button-base"></span><span class="case-button-lid"></span><span class="case-button-lock"></span></span>
+      <span class="case-button-art" aria-hidden="true"><span class="case-button-base"></span><span class="case-button-lid"></span><span class="case-button-lock"></span><span class="case-button-count" id="caseButtonCount">1</span></span>
       <span class="case-button-label">KISTE</span>
+      <span class="case-button-timer" id="caseButtonTimer">Lade...</span>
     </button>
     <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
   </div>
@@ -1588,7 +1591,7 @@
       if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
     }
 
-    let caseState = { canOpen: true, next_open_at: null, gifted_chests: 0, owned: [], equipped: { glow: null, color: null } };
+    let caseState = { canOpen: true, daily_available: true, next_open_at: null, gifted_chests: 0, owned: [], equipped: { glow: null, color: null } };
     let caseCdTimer = null;
 
     function toggleCaseOverlay() {
@@ -1619,7 +1622,7 @@
       if (!token) return;
       const data = await apiGet('/api/chest/status', token);
       if (!data || !data.success) { if (data && (data.error === 'Nicht angemeldet.' || data.error === 'Konto gesperrt.')) doLogout(); return; }
-      caseState = { canOpen: !!data.canOpen, next_open_at: data.next_open_at, gifted_chests: Number(data.gifted_chests) || 0, owned: data.owned || [], equipped: data.equipped || { glow: null, color: null } };
+      caseState = { canOpen: !!data.canOpen, daily_available: !!data.daily_available, next_open_at: data.next_open_at, gifted_chests: Number(data.gifted_chests) || 0, owned: data.owned || [], equipped: data.equipped || { glow: null, color: null } };
       document.getElementById('caseReveal').classList.add('hidden');
       document.getElementById('caseReveal').innerHTML = '';
       renderCase();
@@ -1635,6 +1638,11 @@
       const cd = document.getElementById('caseCountdown');
       const st = document.getElementById('caseStatusText');
       const btn = document.getElementById('btnOpenChest');
+      const count = document.getElementById('caseButtonCount');
+      const timer = document.getElementById('caseButtonTimer');
+      const available = caseState.gifted_chests + (caseState.daily_available ? 1 : 0);
+      count.textContent = available;
+      timer.textContent = caseState.canOpen ? 'BEREIT' : formatCountdown((caseState.next_open_at || 0) - Date.now());
       document.getElementById('caseBox').classList.toggle('ready', !!caseState.canOpen);
       btn.classList.toggle('hidden', !caseState.canOpen);
       if (caseState.canOpen) {
@@ -1663,9 +1671,10 @@
       stopCaseCd();
       caseCdTimer = setInterval(function () {
         if (caseState.canOpen) return;
-        if ((caseState.next_open_at || 0) - Date.now() <= 0) {
-          caseState.canOpen = true;
-          caseState.next_open_at = null;
+         if ((caseState.next_open_at || 0) - Date.now() <= 0) {
+           caseState.canOpen = true;
+           caseState.daily_available = true;
+           caseState.next_open_at = null;
           renderCaseStatus();
           return;
         }
@@ -1731,6 +1740,7 @@
         caseState.owned = data.owned || caseState.owned;
         caseState.next_open_at = data.next_open_at;
         caseState.gifted_chests = Number(data.gifted_chests) || 0;
+        caseState.daily_available = data.daily_available !== undefined ? !!data.daily_available : caseState.daily_available;
         caseState.canOpen = !!data.canOpen;
         const reveal = document.getElementById('caseReveal');
         const rCls = RARITY_CSS[data.item.rarity] || 'r-common';
@@ -2375,6 +2385,8 @@
       document.getElementById('btnAdmin').classList.toggle('show', isStaff);
       updateRankPill(user);
       applyWebsiteTheme(user);
+      loadCase();
+      startCaseCd();
       closeAdmin();
       closeProfile();
       closeDmOverlay();

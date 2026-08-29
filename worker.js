@@ -1045,6 +1045,7 @@ async function handleChestStatus(request, env, corsHeaders) {
   return json({
     success: true,
     canOpen: canOpen || giftedChests > 0,
+    daily_available: canOpen,
     next_open_at: giftedChests > 0 || canOpen ? null : (lastMs + CHEST_COOLDOWN_MS),
     gifted_chests: giftedChests,
     items: COSMETIC_ITEMS,
