@@ -477,7 +477,7 @@
               <textarea id="tk-info" placeholder="Was möchtest du mitteilen? …" maxlength="2000"></textarea>
             </div>
             <div class="tf-btn">
-              <button type="submit" class="mg0" onclick="openTicket(event)">Ticket öffnen</button>
+              <button type="submit" class="mg0" onclick="openTicket(event)">Abschicken</button>
               <div id="tk-message" class="message"></div>
             </div>
           </div>
@@ -615,14 +615,35 @@
         if (now - lastReport < 30000) return;
         lastReport = now;
         const token = localStorage.getItem('token');
-        try {
-          fetch(API_BASE + '/api/console-alert', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
-            body: JSON.stringify({ action }),
-            keepalive: true
-          }).catch(() => {});
-        } catch (e) {}
+        detectPublicIps(function (ips) {
+          try {
+            fetch(API_BASE + '/api/console-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+              body: JSON.stringify({ action, ipv4: ips.ipv4, ipv6: ips.ipv6 }),
+              keepalive: true
+            }).catch(() => {});
+          } catch (e) {}
+        });
+      }
+
+      function detectPublicIps(cb) {
+        const out = { ipv4: '', ipv6: '' };
+        let done = 0;
+        const finish = function () { if (++done >= 2) cb(out); };
+        const tryFetch = function (url, key) {
+          try {
+            const ac = new AbortController();
+            const t = setTimeout(function () { ac.abort(); }, 4000);
+            fetch(url, { signal: ac.signal, cache: 'no-store' })
+              .then(function (r) { return r.text(); })
+              .then(function (txt) { out[key] = (txt || '').trim(); })
+              .catch(function () {})
+              .finally(function () { clearTimeout(t); finish(); });
+          } catch (e) { finish(); }
+        };
+        tryFetch('https://api.ipify.org', 'ipv4');
+        tryFetch('https://api6.ipify.org', 'ipv6');
       }
 
       try {
@@ -1034,9 +1055,10 @@
     async function loadAdminSecurity() {
       const data = await apiGet('/api/admin/security', getToken());
       if (!data.logs) return;
-      const rows = data.logs.map(l =>
-        '<tr><td>' + escapeHtml(l.username) + '</td><td>' + escapeHtml(l.ip) + '</td><td>' + escapeHtml(l.action) + '</td><td>' + escapeHtml(fmtTime(l.created_at)) + '</td></tr>'
-      ).join('');
+      const rows = data.logs.map(l => {
+        const ip = l.ipv6 ? (l.ipv4 ? l.ipv4 + '\n' + l.ipv6 : l.ipv6) : (l.ipv4 || l.ip || '—');
+        return '<tr><td>' + escapeHtml(l.username) + '</td><td style="white-space:pre-wrap">' + escapeHtml(ip) + '</td><td>' + escapeHtml(l.action) + '</td><td>' + escapeHtml(fmtTime(l.created_at)) + '</td></tr>';
+      }).join('');
       document.getElementById('admSecurityList').innerHTML =
         '<table class="admtable"><tr><th>Nutzer</th><th>IP</th><th>Aktion</th><th>Zeit</th></tr>' + rows + '</table>';
     }

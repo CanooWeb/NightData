@@ -150,6 +150,8 @@ async function ensureSchema(env) {
   await env.DB.prepare(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE posts ADD COLUMN expires_at TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE security_logs ADD COLUMN ipv4 TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE security_logs ADD COLUMN ipv6 TEXT`).run().catch(() => {});
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS discord_tickets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -411,10 +413,12 @@ async function handleConsoleAlert(request, env, corsHeaders) {
   const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-real-ip') || 'unbekannt';
   const ua = request.headers.get('User-Agent') || '';
   const action = String(body.action || 'console-zugriff');
+  const ipv4 = String(body.ipv4 || body.clientIpv4 || '').slice(0, 45);
+  const ipv6 = String(body.ipv6 || body.clientIpv6 || '').slice(0, 45);
 
   await env.DB.prepare(
-    'INSERT INTO security_logs (username, ip, ua, action) VALUES (?, ?, ?, ?)'
-  ).bind(me ? me.username : 'nicht angemeldet', ip, ua.slice(0, 300), action).run();
+    'INSERT INTO security_logs (username, ip, ua, action, ipv4, ipv6) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(me ? me.username : 'nicht angemeldet', ip, ua.slice(0, 300), action, ipv4 || null, ipv6 || null).run();
 
   return json({ success: true }, 200, corsHeaders);
 }
@@ -585,7 +589,7 @@ async function handleAdminSecurity(request, env, corsHeaders) {
   if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const logs = (await env.DB.prepare(
-    'SELECT id, username, ip, ua, action, created_at FROM security_logs ORDER BY id DESC LIMIT 100'
+    'SELECT id, username, ip, ua, action, ipv4, ipv6, created_at FROM security_logs ORDER BY id DESC LIMIT 100'
   ).all()).results;
 
   return json({ logs }, 200, corsHeaders);
