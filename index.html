@@ -1506,6 +1506,10 @@
     function roleBadgeCss(role, color) {
       return 'color:' + color + ';border-color:' + color + ';';
     }
+    function roleColorOf(u) {
+      const role = String((u && u.role) || '').toLowerCase();
+      return roleColorMap[role] || roleColorMap.member || '#9a6fd8';
+    }
     function themeColorOf(u) { return cosmeticColorById(u && (u.color_item || u.theme || u.sender_theme)); }
     function applyWebsiteTheme(u) {
       const color = themeColorOf(u);
@@ -1531,7 +1535,7 @@
       const badge = document.getElementById('topRole');
       if (!badge) return;
       const role = (u.role || 'member').toLowerCase();
-      const color = roleColorMap[role] || roleColorMap.member || '#9a6fd8';
+      const color = roleColorOf(u);
       badge.textContent = role.toUpperCase();
       badge.style.color = color;
       badge.style.backgroundImage = '';
@@ -1626,7 +1630,7 @@
         const action = joined ? '<button class="btn mini danger" onclick="leaveVoiceChannel()">Verlassen</button>' + '<button class="btn mini" onclick="toggleVoiceMute()">' + (voiceMuted ? 'Mikro an' : 'Stumm') + '</button>' : '<button class="btn mini ok" onclick="joinVoiceChannel(' + c.id + ')">Beitreten</button>';
         const owner = c.owner === me ? '<button class="btn mini danger" onclick="closeVoiceChannel(' + c.id + ')">Schließen</button>' : '';
         const adminActions = staff && c.owner !== me ? '<button class="btn mini" onclick="adminVoiceClose(' + c.id + ')">Schließen</button><button class="btn mini danger" onclick="adminVoiceDelete(' + c.id + ')">Löschen</button>' : '';
-        const members = c.members.map(function (m) { const glow = glowColorOf(m); const roleColor = roleColorMap[m.role] || roleColorMap.member || '#9a6fd8'; const color = glow || roleColor; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt="" style="box-shadow:0 0 8px ' + color + '">' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + color + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; const mute = staff && m.username !== me ? '<button class="btn mini" onclick="adminVoiceMute(' + c.id + ',\'' + escapeAttr(m.username) + '\',' + (!m.muted) + ')">' + (m.muted ? 'Laut' : 'Stumm') + '</button>' : ''; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + nameTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role" style="' + roleBadgeCss(m.role, roleColor) + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + (m.muted ? ' · <span class="voice-member-role">STUMM</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span>' + mute + '</span>'; }).join('');
+        const members = c.members.map(function (m) { const glow = glowColorOf(m); const roleColor = roleColorOf(m); const color = glow || roleColor; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt=""' + (glow ? ' style="box-shadow:0 0 8px ' + glow + '"' : '') + '>' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + roleColor + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; const mute = staff && m.username !== me ? '<button class="btn mini" onclick="adminVoiceMute(' + c.id + ',\'' + escapeAttr(m.username) + '\',' + (!m.muted) + ')">' + (m.muted ? 'Laut' : 'Stumm') + '</button>' : ''; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + nameTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role" style="' + roleBadgeCss(m.role, roleColor) + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + (m.muted ? ' · <span class="voice-member-role">STUMM</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span>' + mute + '</span>'; }).join('');
         return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + (c.is_open ? 'OFFEN' : 'GESCHLOSSEN') + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div><div class="voice-members">' + (members || '<span class="voice-member">Noch niemand</span>') + '</div></div>' + action + owner + adminActions + '</div>';
       }).join('') : '<div class="empty">Noch keine Sprachkanäle.</div>';
     }
@@ -1715,8 +1719,8 @@
     function chatMsgHtml(m) {
       const name = m.alias || m.author || '???';
       const glow = glowColorOf(m);
-      const color = glow || roleColorMap[m.role] || roleColorMap.member || '#9a6fd8';
-      const roleColor = roleColorMap[m.role] || roleColorMap.member || '#9a6fd8';
+      const color = glow || roleColorOf(m);
+      const roleColor = roleColorOf(m);
       const avRing = glow ? ' style="box-shadow:0 0 12px ' + glow + '"' : '';
       const av = m.avatar
         ? '<img class="c-av" src="' + escapeHtml(m.avatar) + '" alt=""' + avRing + '>'
@@ -2202,8 +2206,8 @@
 
     function friendAvatarHtml(u) {
       const glow = glowColorOf(u);
-      const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
-      const roleColor = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      const roleColor = roleColorOf(u);
+      const color = glow || roleColor;
       if (u.avatar) {
         const ring = glow ? ' style="box-shadow:0 0 10px ' + glow + '"' : '';
         return '<img class="c-av" src="' + escapeHtml(u.avatar) + '" alt=""' + ring + '>';
@@ -2215,7 +2219,7 @@
     function friendNameHtml(u) {
       const glow = glowColorOf(u);
       const role = String(u.role || '').toLowerCase();
-      const roleColor = roleColorMap[role] || roleColorMap.member || '#9a6fd8';
+       const roleColor = roleColorOf(u);
       const color = glow || roleColor;
       const name = u.alias || u.username || '???';
        const badge = role ? '<span class="c-role" style="' + roleBadgeCss(role, roleColor) + '">' + escapeHtml(role.toUpperCase()) + '</span>' : '';
@@ -2279,7 +2283,7 @@
       }
       box.innerHTML = '<h3>Nachrichten</h3>' + convs.map(function (c) {
         const glow = glowColorOf(c);
-        const color = glow || roleColorMap[c.role] || roleColorMap.member || '#9a6fd8';
+         const color = glow || roleColorOf(c);
         const name = c.alias || c.username;
         const badge = c.unread > 0 ? '<span class="badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '';
         const time = c.last_created ? '<span class="f-time">' + chatTime(c.last_created) + '</span>' : '';
@@ -2376,8 +2380,8 @@
 
     function dmMsgHtml(m, isMe) {
       const glow = glowColorOf(m);
-      const color = glow || roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
-      const roleColor = roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
+      const color = glow || roleColorOf({ role: m.sender_role });
+        const roleColor = roleColorOf({ role: m.sender_role });
       const name = m.sender_alias || m.sender;
       let meta = '';
       if (!isMe) {
@@ -2411,8 +2415,8 @@
       const box = document.getElementById('dmMsgs');
       if (dmLastId === 0 && data.friend) {
         const fGlow = cosmeticColorById(data.friend.glow_item);
-        const color = fGlow || roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
-        const roleColor = roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
+         const roleColor = roleColorOf(data.friend);
+         const color = fGlow || roleColor;
         const name = data.friend.alias || data.friend.username;
         document.getElementById('dmThreadName').innerHTML =
            friendAvatarHtml(data.friend) + '<span class="cname" style="' + nameTextCss(data.friend, color) + '">' + escapeHtml(name) + '</span>' +
@@ -2611,8 +2615,8 @@
       box.style.borderColor = frame;
       box.style.boxShadow = '0 16px 50px rgba(0,0,0,0.6), 0 0 22px ' + frame + '88';
       const avRing = glow ? ' style="box-shadow:0 0 18px ' + glow + '"' : '';
-      const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
-      const roleColor = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+       const roleColor = roleColorOf(u);
+       const color = glow || roleColor;
       wrap.innerHTML = u.avatar
         ? '<img class="up-avatar" src="' + escapeHtml(u.avatar) + '" alt=""' + avRing + '>'
         : '<span class="up-avatar-ph" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(((u.alias || u.username || '?').charAt(0)).toUpperCase()) + '</span>';
