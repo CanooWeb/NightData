@@ -56,6 +56,8 @@ const DEFAULTS = {
   allow_registration: '1',
   max_image_mb: '10',
   ann_duration_default: '60',
+  maintenance_enabled: '0',
+  maintenance_text: 'Unsere Seite ist aktuell in Wartungsarbeiten.',
 };
 
 export default {
@@ -237,6 +239,12 @@ export default {
       }
       if (url.pathname === '/api/admin/users/ban' && request.method === 'POST') {
         return await handleAdminUserBan(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/users/voice-mute' && request.method === 'POST') {
+        return await handleAdminUserVoiceMute(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/users/warn' && request.method === 'POST') {
+        return await handleAdminUserWarn(request, env, corsHeaders);
       }
       if (url.pathname === '/api/admin/users/delete' && request.method === 'POST') {
         return await handleAdminUserDelete(request, env, corsHeaders);
@@ -430,6 +438,13 @@ async function ensureSchema(env) {
   await env.DB.prepare('ALTER TABLE users ADD COLUMN glow_item TEXT').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN color_item TEXT').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN nightcoins INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
+  await env.DB.prepare('ALTER TABLE users ADD COLUMN voice_muted INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS warnings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`).run();
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS market_listings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -448,6 +463,8 @@ async function ensureSchema(env) {
     max_users INTEGER NOT NULL DEFAULT 10, is_open INTEGER NOT NULL DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now'))
   )`).run();
+  await env.DB.prepare('ALTER TABLE voice_channels ADD COLUMN friends_only INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
+  await env.DB.prepare('ALTER TABLE voice_channels ADD COLUMN last_empty_at TEXT').run().catch(() => {});
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_members (
     channel_id INTEGER NOT NULL, username TEXT NOT NULL, joined_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (channel_id, username)
@@ -503,7 +520,7 @@ async function getAuthUser(request, env) {
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
   if (!session) return null;
 
-  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, glow_item, color_item FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, glow_item, color_item, voice_muted FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user || user.banned) return null;
 
   return user;
@@ -607,14 +624,15 @@ async function handleMe(request, env, corsHeaders) {
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
   if (!session) return json({ error: 'Sitzung ungültig oder abgelaufen.' }, 401, corsHeaders);
 
-  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, voice_muted FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user) return json({ error: 'Benutzer nicht gefunden.' }, 401, corsHeaders);
   if (user.banned) return json({ error: 'Konto gesperrt.' }, 403, corsHeaders);
 
   const postsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM posts WHERE author = ?').bind(user.username).first()).n;
   const ticketsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM discord_tickets WHERE author = ?').bind(user.username).first()).n;
 
-  return json({ success: true, user, postsCount, ticketsCount }, 200, corsHeaders);
+  const warnings = (await env.DB.prepare('SELECT id, reason, created_at FROM warnings WHERE user_id = ? ORDER BY id DESC LIMIT 20').bind(user.id).all()).results;
+  return json({ success: true, user, postsCount, ticketsCount, warnings }, 200, corsHeaders);
 }
 
 async function handleProfileGet(request, env, corsHeaders) {
@@ -1373,41 +1391,56 @@ async function voiceBody(request) { try { return await request.json(); } catch (
 async function voiceMembers(env, channelId) {
   return (await env.DB.prepare('SELECT vm.username, vm.joined_at, vm.muted, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM voice_members vm LEFT JOIN users u ON u.username = vm.username WHERE vm.channel_id = ? ORDER BY vm.joined_at').bind(channelId).all()).results;
 }
+async function cleanupEmptyVoiceChannels(env) {
+  await env.DB.prepare(
+    "DELETE FROM voice_channels WHERE datetime(COALESCE(last_empty_at, created_at), '+5 seconds') <= datetime('now') AND id NOT IN (SELECT channel_id FROM voice_members)"
+  ).run();
+  await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id NOT IN (SELECT id FROM voice_channels)').run();
+}
 async function handleVoiceGet(request, env, corsHeaders) {
   const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  const channels = (await env.DB.prepare('SELECT c.id, c.name, c.owner, c.max_users, c.is_open, c.created_at, COUNT(m.username) AS member_count FROM voice_channels c LEFT JOIN voice_members m ON m.channel_id = c.id GROUP BY c.id ORDER BY c.id DESC').all()).results;
+  await cleanupEmptyVoiceChannels(env);
+  const channels = (await env.DB.prepare('SELECT c.id, c.name, c.owner, c.max_users, c.is_open, c.friends_only, c.created_at, COUNT(m.username) AS member_count FROM voice_channels c LEFT JOIN voice_members m ON m.channel_id = c.id GROUP BY c.id ORDER BY c.id DESC').all()).results;
   for (const c of channels) c.members = await voiceMembers(env, c.id);
-  return json({ channels }, 200, corsHeaders);
+  return json({ channels, voice_muted: !!user.voice_muted }, 200, corsHeaders);
 }
 async function handleVoiceCreate(request, env, corsHeaders) {
   const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  const b = await voiceBody(request), name = String(b.name || '').trim(), max = Number(b.max_users), open = b.is_open !== false;
+  const b = await voiceBody(request), name = String(b.name || '').trim(), max = Number(b.max_users), access = String(b.access || (b.is_open === false ? 'closed' : 'open'));
   if (name.length < 2 || name.length > 32) return json({ error: 'Der Kanalname muss 2–32 Zeichen haben.' }, 400, corsHeaders);
   if (!Number.isInteger(max) || max < 2 || max > 50) return json({ error: 'Die Kapazität muss zwischen 2 und 50 liegen.' }, 400, corsHeaders);
-  const result = await env.DB.prepare('INSERT INTO voice_channels (name, owner, max_users, is_open) VALUES (?, ?, ?, ?)').bind(name, user.username, max, open ? 1 : 0).run();
+  if (!['open', 'friends', 'closed'].includes(access)) return json({ error: 'Ungültiger Zugang.' }, 400, corsHeaders);
+  const result = await env.DB.prepare('INSERT INTO voice_channels (name, owner, max_users, is_open, friends_only) VALUES (?, ?, ?, ?, ?)').bind(name, user.username, max, access === 'closed' ? 0 : 1, access === 'friends' ? 1 : 0).run();
   await env.DB.prepare('INSERT INTO voice_members (channel_id, username) VALUES (?, ?)').bind(result.meta.last_row_id, user.username).run();
   return json({ success: true, channel_id: result.meta.last_row_id }, 201, corsHeaders);
 }
 async function handleVoiceJoin(request, env, corsHeaders) {
   const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  if (user.voice_muted) return json({ error: 'Dein Voicezugang wurde vom Team stummgeschaltet.' }, 403, corsHeaders);
+  await cleanupEmptyVoiceChannels(env);
   const id = Number((await voiceBody(request)).channel_id), c = await env.DB.prepare('SELECT * FROM voice_channels WHERE id = ?').bind(id).first();
   if (!c) return json({ error: 'Kanal nicht gefunden.' }, 404, corsHeaders);
   const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
   if (member) return json({ success: true }, 200, corsHeaders);
   if (!c.is_open && c.owner !== user.username) return json({ error: 'Dieser Kanal ist geschlossen.' }, 403, corsHeaders);
+  if (c.friends_only && c.owner !== user.username && !(await isFriend(env, c.owner, user.username))) return json({ error: 'Dieser Kanal ist nur für Freunde des Erstellers.' }, 403, corsHeaders);
   const count = (await env.DB.prepare('SELECT COUNT(*) AS n FROM voice_members WHERE channel_id = ?').bind(id).first()).n;
   if (count >= c.max_users) return json({ error: 'Der Kanal ist voll.' }, 409, corsHeaders);
   await env.DB.prepare('INSERT INTO voice_members (channel_id, username) VALUES (?, ?)').bind(id, user.username).run();
+  await env.DB.prepare('UPDATE voice_channels SET last_empty_at = NULL WHERE id = ?').bind(id).run();
   return json({ success: true }, 200, corsHeaders);
 }
 async function handleVoiceLeave(request, env, corsHeaders) {
   const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
   const id = Number((await voiceBody(request)).channel_id);
   await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).run();
+  await env.DB.prepare("UPDATE voice_channels SET last_empty_at = datetime('now') WHERE id = ? AND NOT EXISTS (SELECT 1 FROM voice_members WHERE channel_id = ?)").bind(id, id).run();
+  await cleanupEmptyVoiceChannels(env);
   return json({ success: true }, 200, corsHeaders);
 }
 async function handleVoiceSignal(request, env, corsHeaders) {
   const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  if (user.voice_muted) return json({ error: 'Dein Voicezugang wurde vom Team stummgeschaltet.' }, 403, corsHeaders);
   const b = await voiceBody(request), id = Number(b.channel_id), to = String(b.to || ''), kind = String(b.kind || ''), payload = String(b.payload || '');
   if (!id || !to || !['offer', 'answer', 'candidate'].includes(kind) || payload.length > 20000) return json({ error: 'Ungültiges Signal.' }, 400, corsHeaders);
   const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
@@ -1442,6 +1475,37 @@ async function handleAdminVoiceMute(request, env, corsHeaders) {
   if (!target) return json({ error: 'Teilnehmer nicht gefunden.' }, 404, corsHeaders);
   await env.DB.prepare('UPDATE voice_members SET muted = ? WHERE channel_id = ? AND username = ?').bind(muted ? 1 : 0, channelId, username).run();
   return json({ success: true, muted }, 200, corsHeaders);
+}
+
+async function handleAdminUserVoiceMute(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const body = await voiceBody(request);
+  const id = Number(body.id);
+  const muted = body.muted !== false;
+  const target = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(id).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  if (target.id === admin.id) return json({ error: 'Du kannst dich nicht selbst stummschalten.' }, 400, corsHeaders);
+  if (target.role === 'founder' && admin.role !== 'founder') return json({ error: 'Founder können nur vom Founder verwaltet werden.' }, 403, corsHeaders);
+  await env.DB.prepare('UPDATE users SET voice_muted = ? WHERE id = ?').bind(muted ? 1 : 0, id).run();
+  if (muted) await env.DB.prepare('DELETE FROM voice_members WHERE username = ?').bind(target.username).run();
+  if (muted) await env.DB.prepare("UPDATE voice_channels SET last_empty_at = datetime('now') WHERE NOT EXISTS (SELECT 1 FROM voice_members WHERE channel_id = voice_channels.id)").run();
+  return json({ success: true, muted }, 200, corsHeaders);
+}
+
+async function handleAdminUserWarn(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const body = await voiceBody(request);
+  const id = Number(body.id);
+  const reason = String(body.reason || '').trim().slice(0, 500);
+  if (!id || !reason) return json({ error: 'Benutzer und Verwarnungstext sind erforderlich.' }, 400, corsHeaders);
+  const target = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(id).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  if (target.id === admin.id) return json({ error: 'Du kannst dich nicht selbst verwarnen.' }, 400, corsHeaders);
+  if (target.role === 'founder' && admin.role !== 'founder') return json({ error: 'Founder können nur vom Founder verwaltet werden.' }, 403, corsHeaders);
+  await env.DB.prepare('INSERT INTO warnings (user_id, reason) VALUES (?, ?)').bind(id, reason).run();
+  return json({ success: true }, 201, corsHeaders);
 }
 async function handleAdminVoiceClose(request, env, corsHeaders) {
   const staff = await voiceStaff(request, env); if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
@@ -1528,8 +1592,10 @@ async function handleFeed(request, env, corsHeaders, settings) {
       siteTitle: settings.site_title,
       welcomeText: settings.welcome_text,
       feedEnabled: settings.feed_enabled === '1',
-      highlightsEnabled: settings.highlights_enabled === '1',
-      maxImageMb: Number(settings.max_image_mb) || 10,
+     highlightsEnabled: settings.highlights_enabled === '1',
+       maintenanceEnabled: settings.maintenance_enabled === '1',
+       maintenanceText: settings.maintenance_text,
+       maxImageMb: Number(settings.max_image_mb) || 10,
     },
   }, 200, corsHeaders);
 }
@@ -1712,7 +1778,7 @@ async function handleAdminUsers(request, env, corsHeaders) {
   if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const users = (await env.DB.prepare(
-    'SELECT id, username, role, banned, created_at FROM users ORDER BY id' 
+    'SELECT id, username, role, banned, voice_muted, created_at FROM users ORDER BY id'
   ).all()).results;
 
   return json({ users }, 200, corsHeaders);

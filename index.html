@@ -478,6 +478,11 @@
     .market-item .market-meta { color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; margin-bottom: 10px; }
     .voiceoverlay { position: fixed; inset: 0; z-index: 35; display: none; overflow-y: auto; padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px); }
     .voiceoverlay.show { display: block; }
+    .maintenance-screen { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(5,6,10,.98); text-align: center; }
+    .maintenance-screen.show { display: flex; }
+    .maintenance-card { max-width: 620px; padding: 36px 28px; border: 1px solid rgba(255,209,102,.55); border-radius: 16px; background: rgba(16,18,30,.96); box-shadow: 0 0 35px rgba(255,209,102,.18); }
+    .maintenance-card h1 { color: #ffd166; font-family: 'Orbitron',sans-serif; letter-spacing: 2px; margin-bottom: 16px; }
+    .maintenance-card p { color: #d9cdf2; white-space: pre-wrap; line-height: 1.6; }
     .voiceoverlay .shell { max-width: 760px; margin: 0 auto; }
     .voice-create { display: grid; grid-template-columns: 1fr 120px 150px auto; gap: 8px; align-items: end; margin-bottom: 18px; }
     .voice-list { display: grid; gap: 10px; }
@@ -938,7 +943,7 @@
           <button data-tab="adm-chests" onclick="switchAdmTab('adm-chests')">Kisten</button>
           <button data-tab="adm-posts" onclick="switchAdmTab('adm-posts')">Nachrichten + Inhalte</button>
           <button data-tab="adm-security" onclick="switchAdmTab('adm-security')">Sicherheit</button>
-          <button data-found data-tab="adm-settings" onclick="switchAdmTab('adm-settings')">Einstellungen</button>
+          <button data-admin data-tab="adm-settings" onclick="switchAdmTab('adm-settings')">Einstellungen</button>
         </div>
 
         <div class="adm-tab act" id="adm-overview" data-found>
@@ -1045,7 +1050,7 @@
           <div id="admSecurityList"><div class="empty">Lade…</div></div>
         </div>
 
-        <div class="adm-tab" id="adm-settings" data-found>
+        <div class="adm-tab" id="adm-settings" data-admin>
           <h3>Einstellungen</h3>
           <div class="row">
             <label for="set-title">Seitentitel</label>
@@ -1063,6 +1068,11 @@
           <div class="row">
             <label for="set-anndur">Standard-Dauer für Ankündigungen</label>
             <input type="text" id="set-anndur" placeholder="z.B. 45s, 10m, 2h, 1d oder '0' = dauerhaft">
+          </div>
+          <div class="checkrow"><input type="checkbox" id="set-maintenance"><label for="set-maintenance">Wartungsmodus aktivieren</label></div>
+          <div class="row">
+            <label for="set-maintenance-text">Wartungshinweis (leer = löschen)</label>
+            <input type="text" id="set-maintenance-text" placeholder="Unsere Seite ist aktuell in Wartungsarbeiten.">
           </div>
           <button type="submit" id="btnSaveSettings" onclick="adminSaveSettings()">Einstellungen speichern</button>
           <div id="adm-settings-msg" class="message"></div>
@@ -1259,12 +1269,19 @@
         <div class="voice-create">
           <div class="row"><label for="voice-name">Name</label><input id="voice-name" maxlength="32" placeholder="z.B. Night Lounge"></div>
           <div class="row"><label for="voice-limit">Max. Leute</label><input id="voice-limit" type="number" min="2" max="50" value="10"></div>
-          <div class="row"><label for="voice-open">Zugang</label><select id="voice-open"><option value="1">Offen</option><option value="0">Geschlossen</option></select></div>
+          <div class="row"><label for="voice-open">Zugang</label><select id="voice-open"><option value="open">Offen</option><option value="friends">Nur Freunde</option><option value="closed">Geschlossen</option></select></div>
           <button class="btn ok" onclick="createVoiceChannel()">Erstellen</button>
         </div>
         <div id="voice-msg" class="message"></div><div class="section-divider"></div>
         <div class="voice-list" id="voiceChannels"><div class="empty">Lade Kanäle...</div></div>
       </div></div>
+    </div>
+  </div>
+
+  <div class="maintenance-screen" id="maintenanceScreen">
+    <div class="maintenance-card">
+      <h1>WARTUNGSARBEITEN</h1>
+      <p id="maintenanceText">Unsere Seite ist aktuell in Wartungsarbeiten.</p>
     </div>
   </div>
 
@@ -1623,13 +1640,13 @@
       const data = await apiGet('/api/voice', getToken());
       if (data && Array.isArray(data.channels)) {
         voiceChannelsState = data.channels;
-        syncVoiceMuteStates(data.channels);
+        syncVoiceMuteStates(data.channels, !!data.voice_muted);
         renderVoiceChannels(data.channels);
       }
     }
-    function syncVoiceMuteStates(channels) {
+    function syncVoiceMuteStates(channels, globallyMuted) {
       const me = getStoredUser().username;
-      let mutedByStaff = false;
+      let mutedByStaff = !!globallyMuted;
       channels.forEach(function (channel) {
         channel.members.forEach(function (member) {
           const audio = document.getElementById('voice-audio-' + member.username);
@@ -1651,11 +1668,12 @@
         const owner = c.owner === me ? '<button class="btn mini danger" onclick="closeVoiceChannel(' + c.id + ')">Schließen</button>' : '';
         const adminActions = staff && c.owner !== me ? '<button class="btn mini" onclick="adminVoiceClose(' + c.id + ')">Schließen</button><button class="btn mini danger" onclick="adminVoiceDelete(' + c.id + ')">Löschen</button>' : '';
         const members = c.members.map(function (m) { const glow = glowColorOf(m); const roleColor = roleColorOf(m); const color = glow || roleColor; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt=""' + (glow ? ' style="box-shadow:0 0 8px ' + glow + '"' : '') + '>' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + roleColor + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; const mute = staff && m.username !== me ? '<button class="btn mini" onclick="adminVoiceMute(' + c.id + ',\'' + escapeAttr(m.username) + '\',' + (!m.muted) + ')">' + (m.muted ? 'Laut' : 'Stumm') + '</button>' : ''; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + nameTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role" style="' + roleBadgeCss(m.role, roleColor) + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + (m.muted ? ' · <span class="voice-member-role">STUMM</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span>' + mute + '</span>'; }).join('');
-        return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + (c.is_open ? 'OFFEN' : 'GESCHLOSSEN') + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div><div class="voice-members">' + (members || '<span class="voice-member">Noch niemand</span>') + '</div></div>' + action + owner + adminActions + '</div>';
+        const accessLabel = c.friends_only ? 'NUR FREUNDE' : (c.is_open ? 'OFFEN' : 'GESCHLOSSEN');
+        return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + accessLabel + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div><div class="voice-members">' + (members || '<span class="voice-member">Noch niemand</span>') + '</div></div>' + action + owner + adminActions + '</div>';
       }).join('') : '<div class="empty">Noch keine Sprachkanäle.</div>';
     }
     async function createVoiceChannel() {
-      const data = await api('/api/voice/create', { name: document.getElementById('voice-name').value.trim(), max_users: Number(document.getElementById('voice-limit').value), is_open: document.getElementById('voice-open').value === '1' }, getToken());
+      const data = await api('/api/voice/create', { name: document.getElementById('voice-name').value.trim(), max_users: Number(document.getElementById('voice-limit').value), access: document.getElementById('voice-open').value }, getToken());
       showMessage('voice-msg', data.success ? 'Kanal erstellt.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
       if (data.success) { document.getElementById('voice-name').value = ''; loadVoiceChannels(); joinVoiceChannel(data.channel_id); }
     }
@@ -2758,6 +2776,24 @@
       } else {
         welcome.classList.add('hidden');
       }
+      const role = String(getStoredUser().role || '').toLowerCase();
+      const maintenance = document.getElementById('maintenanceScreen');
+      const allowed = role === 'admin' || role === 'founder';
+      maintenance.classList.toggle('show', !!config.maintenanceEnabled && !allowed);
+      document.getElementById('maintenanceText').textContent = config.maintenanceText || 'Unsere Seite ist aktuell in Wartungsarbeiten.';
+    }
+
+    function announceWarnings(warnings) {
+      if (!Array.isArray(warnings) || !warnings.length) return;
+      const text = warnings.map(function (w) { return 'Du hast eine Verwarnung bekommen. ' + w.reason; }).join('\n');
+      alert(text);
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance('Du hast eine Verwarnung bekommen. ' + warnings[0].reason);
+        utterance.lang = 'de-DE';
+        const voice = window.speechSynthesis.getVoices().find(function (v) { return /male|männ|markus|hans|stefan/i.test(v.name); });
+        if (voice) utterance.voice = voice;
+        window.speechSynthesis.speak(utterance);
+      }
     }
 
     let feedAnnSig = null;
@@ -3128,9 +3164,12 @@
           '<select class="role-select" ' + (self ? 'disabled' : '') + ' onchange="adminSetRole(' + u.id + ',this.value)">' +
           options +
           '</select>';
+        const voiceBtn = self ? '' : '<button class="btn mini ' + (u.voice_muted ? 'ok' : 'danger') + '" onclick="adminSetVoiceMute(' + u.id + ',' + (u.voice_muted ? 0 : 1) + ')">' + (u.voice_muted ? 'Voice entsperren' : 'Voice stummschalten') + '</button>';
+        const warnBtn = self ? '' : '<button class="btn mini" onclick="adminWarnUser(' + u.id + ',\'' + escapeAttr(u.username) + '\')">Verwarnen</button>';
         const roleBtn = self
           ? ''
           : '<span class="kick">' +
+            voiceBtn + warnBtn +
             '<button class="btn mini ' + (u.banned ? 'ok' : 'danger') + '" onclick="adminSetBan(' + u.id + ',' + (u.banned ? 0 : 1) + ')">' + (u.banned ? 'Entsperren' : 'Sperren') + '</button>' +
             '<button class="btn mini danger" onclick="adminDeleteUser(' + u.id + ',\'' + escapeHtml(u.username) + '\')">Löschen</button>' +
             '</span>';
@@ -3150,6 +3189,17 @@
     async function adminSetBan(id, banned) {
       await api('/api/admin/users/ban', { id, banned }, getToken());
       loadAdminUsers();
+    }
+    async function adminSetVoiceMute(id, muted) {
+      const data = await api('/api/admin/users/voice-mute', { id, muted: !!muted }, getToken());
+      if (!data.success) alert(data.error || 'Voice-Stummschaltung fehlgeschlagen.');
+      loadAdminUsers();
+    }
+    async function adminWarnUser(id, username) {
+      const reason = prompt('Verwarnungsgrund für ' + username + ':');
+      if (reason === null || !reason.trim()) return;
+      const data = await api('/api/admin/users/warn', { id, reason: reason.trim() }, getToken());
+      if (!data.success) alert(data.error || 'Verwarnung fehlgeschlagen.');
     }
 
     async function adminGrantChests() {
@@ -3322,6 +3372,8 @@
       document.getElementById('set-registration').checked = s.allow_registration === '1';
       document.getElementById('set-maxmb').value = Number(s.max_image_mb) || 10;
       document.getElementById('set-anndur').value = formatDuration(s.ann_duration_default);
+      document.getElementById('set-maintenance').checked = s.maintenance_enabled === '1';
+      document.getElementById('set-maintenance-text').value = s.maintenance_text || '';
       const annDur = document.getElementById('ann-duration');
       if (annDur && !annDur.value.trim()) annDur.value = formatDuration(s.ann_duration_default);
     }
@@ -3334,6 +3386,8 @@
         allow_registration: document.getElementById('set-registration').checked ? '1' : '0',
         max_image_mb: String(Number(document.getElementById('set-maxmb').value) || 10),
         ann_duration_default: String(parsedDur || 0),
+        maintenance_enabled: document.getElementById('set-maintenance').checked ? '1' : '0',
+        maintenance_text: document.getElementById('set-maintenance-text').value.trim(),
       };
       const data = await api('/api/admin/settings', { settings }, getToken());
       if (data.success) {
@@ -3367,6 +3421,7 @@
         const me = await apiGet('/api/me', data.token);
         if (me.success && me.user) {
           localStorage.setItem('user', JSON.stringify(me.user));
+          announceWarnings(me.warnings);
           switchToMain(me.user);
         } else {
           switchToMain({ id: data.user.id, username: data.user.username, role: data.user.role || 'member' });
@@ -3405,7 +3460,8 @@
       const me = await apiGet('/api/me', token);
       if (me.success && me.user) {
         localStorage.setItem('user', JSON.stringify(me.user));
-         switchToMain(me.user);
+        announceWarnings(me.warnings);
+        switchToMain(me.user);
       } else {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
