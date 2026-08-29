@@ -187,8 +187,9 @@
     .message.error { display: block; background: rgba(192,57,43,0.15); color: #ff8f80; border: 1px solid rgba(192,57,43,0.4); }
     .message.success { display: block; background: rgba(46,125,50,0.15); color: #7bd389; border: 1px solid rgba(46,125,50,0.4); }
 
-    #main { position: fixed; inset: 0; z-index: 3; overflow-y: auto; padding: 28px 16px 90px; display: none; }
+    #main { position: fixed; inset: 0; z-index: 3; overflow-y: auto; padding: 28px 16px 90px; display: none; transition: filter .25s; }
     #main.active { display: block; }
+    #main.blur { filter: blur(4px); pointer-events: none; }
     .shell { max-width: 920px; margin: 0 auto; }
 
     .topbar {
@@ -301,7 +302,21 @@
     .empty { font-family: 'Share Tech Mono',monospace; color: #4b3d66; letter-spacing: 2px; font-size: 13px; }
 
     .adminonly { display: none; }
-    .adminonly.show { display: block; }
+    .adminonly.show { display: inline-block; }
+
+    .adminoverlay {
+      position: fixed; inset: 0; z-index: 20; display: none; overflow-y: auto;
+      padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px);
+    }
+    .adminoverlay.show { display: block; }
+    .adminoverlay .shell { max-width: 920px; margin: 0 auto; }
+    .admin-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 18px; padding: 14px 20px;
+      background: rgba(16,18,30,0.9); border: 1px solid rgba(139,63,240,0.4); border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    }
+    .admin-head .brand { font-family: 'Orbitron',sans-serif; font-weight: 900; letter-spacing: 4px; color: #c47dff; font-size: 18px; text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 0 4px rgba(139,63,240,0.5); }
 
     .adm-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px 0; }
     .adm-tabs button { padding: 8px 14px; border: 1px solid rgba(139,63,240,0.4); border-radius: 8px; background: transparent; color: #9a6fd8; font-family: 'Orbitron',sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: all .25s; }
@@ -424,6 +439,7 @@
           <span class="role-badge" id="topRole">LIMITED</span>
         </div>
         <div>
+          <button class="btn ok adminonly" id="btnAdmin" onclick="openAdmin()">◈ Admin</button>
           <button class="btn danger" onclick="doLogout()">Logout</button>
         </div>
       </div>
@@ -469,7 +485,20 @@
         </div>
       </div>
 
-      <div class="panel adminonly" id="adminPanel">
+    </div>
+  </div>
+
+  <div class="adminoverlay" id="adminOverlay">
+    <div class="shell">
+      <div class="admin-head">
+        <div class="brand">◈ ADMIN-SYSTEM</div>
+        <div>
+          <button class="btn ok" onclick="loadFeedAutomatic()">Live-Refresh</button>
+          <button class="btn danger" onclick="closeAdmin()">Schließen</button>
+        </div>
+      </div>
+
+      <div class="panel" id="adminPanel">
         <div class="panel-head">
           <h2>◈ Admin-System</h2>
           <span class="live">FOUNDER ONLY</span>
@@ -609,6 +638,10 @@
 
       window.addEventListener('keydown', function (e) {
         const k = (e.key || '').toLowerCase();
+        if (k === 'escape') {
+          document.getElementById('adminOverlay').classList.remove('show');
+          document.getElementById('main').classList.remove('blur');
+        }
         let blocked = blockedKeys.includes(k);
         if (!blocked) {
           blocked = blockedCombos.some(c => !!e.ctrlKey === c.ctrl && !!e.shiftKey === c.shift && k === c.key);
@@ -779,16 +812,31 @@
       const isFounder = user.role === 'founder';
       badge.textContent = isFounder ? 'FOUNDER' : 'LIMITED';
       badge.className = 'role-badge ' + (isFounder ? 'founder' : 'member');
-      document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('show', isFounder));
-      if (isFounder) {
-        loadAdminData();
-      }
+      document.getElementById('btnAdmin').classList.toggle('show', isFounder);
+      closeAdmin();
       loadFeed();
+    }
+
+    function openAdmin() {
+      document.getElementById('adminOverlay').classList.add('show');
+      document.getElementById('main').classList.add('blur');
+      loadAdminData();
+    }
+
+    function closeAdmin() {
+      document.getElementById('adminOverlay').classList.remove('show');
+      document.getElementById('main').classList.remove('blur');
+    }
+
+    function loadFeedAutomatic() {
+      loadFeed();
+      loadAdminData();
     }
 
     function doLogout() {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      closeAdmin();
       document.getElementById('main').classList.remove('active');
       document.getElementById('loginCard').classList.remove('hidden');
       window.scrollTo(0, 0);
