@@ -565,16 +565,21 @@
       el.className = 'message ' + type;
     }
 
+    // Backend-Adresse: leer lassen = gleiche Seite (z.B. beim lokalen Server).
+    // Für GitHub Pages hier die Worker-URL des Backends eintragen, z.B.:
+    // const https://dash.cloudflare.com/39eff8a925bb7871f8f7969db16696d1/workers/d1/databases/ee634b3f-26de-41a8-94d0-ad32123f24f4/metrics = 'https://nightdata-api.<subdomain>.workers.dev';
+    const https://dash.cloudflare.com/39eff8a925bb7871f8f7969db16696d1/workers/d1/databases/ee634b3f-26de-41a8-94d0-ad32123f24f4/metrics = '';
+
     async function api(url, body) {
       try {
-        const res = await fetch(url, {
+        const res = await fetch(API_BASE + url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
         return await res.json();
       } catch (err) {
-        return { error: 'Server nicht erreichbar. Starte ihn mit: npm start' };
+        return { error: 'Server nicht erreichbar. Prüfe die Backend-URL (API_BASE).' };
       }
     }
 
