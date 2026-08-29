@@ -2856,11 +2856,22 @@
       document.getElementById('warningReason').textContent = warning.reason || 'Bitte beachte künftig die Regeln der Seite.';
       document.getElementById('warningScreen').classList.add('show');
       if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance('Du wurdest verwarnt.');
-        utterance.lang = 'de-DE';
-        const voice = window.speechSynthesis.getVoices().find(function (v) { return /male|männ|markus|hans|stefan/i.test(v.name); });
-        if (voice) utterance.voice = voice;
-        window.speechSynthesis.speak(utterance);
+        const speak = function () {
+          window.speechSynthesis.onvoiceschanged = null;
+          const voices = window.speechSynthesis.getVoices();
+          const preferred = voices.find(function (v) {
+            return /de(-|_)DE/i.test(v.lang) && /google deutsch|jonas|conrad|stefan|markus|hans|thomas|daniel/i.test(v.name);
+          }) || voices.find(function (v) { return /de(-|_)DE/i.test(v.lang) && /male|männlich/i.test(v.name); }) || voices.find(function (v) { return /de(-|_)DE/i.test(v.lang); });
+          const utterance = new SpeechSynthesisUtterance('Du wurdest verwarnt.');
+          utterance.lang = 'de-DE';
+          utterance.rate = 0.88;
+          utterance.pitch = 0.9;
+          utterance.volume = 0.85;
+          if (preferred) utterance.voice = preferred;
+          window.speechSynthesis.speak(utterance);
+        };
+        if (window.speechSynthesis.getVoices().length) speak();
+        else window.speechSynthesis.onvoiceschanged = speak;
       }
     }
     function closeWarningScreen() { document.getElementById('warningScreen').classList.remove('show'); }
