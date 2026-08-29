@@ -496,6 +496,9 @@
     .voice-bars.speaking span:nth-child(4) { animation-delay: -.45s; }
     @keyframes voicebar { from { height: 3px; } to { height: 11px; } }
     .voice-live { color: #7bd389; text-shadow: 0 0 8px rgba(123,211,137,.7); }
+    .voice-call-active { display: none; padding: 4px 7px; color: #7bd389; background: rgba(123,211,137,.08); border: 1px solid rgba(123,211,137,.45); border-radius: 6px; font: 9px 'Share Tech Mono',monospace; letter-spacing: 1px; cursor: pointer; animation: voicepulse 1.8s ease-in-out infinite; }
+    .voice-call-active.show { display: inline-block; }
+    @keyframes voicepulse { 50% { box-shadow: 0 0 12px rgba(123,211,137,.35); } }
     @media (max-width: 700px) { .voiceoverlay { padding: 12px 10px 70px; } .voice-create { grid-template-columns: 1fr 1fr; } .voice-create button { grid-column: 1 / -1; } .voice-channel { align-items: flex-start; flex-wrap: wrap; } }
     @media (max-width: 700px) { .floatui-market { left: 10px; top: 87px; } .market-form { grid-template-columns: 1fr; } .market-form .market-submit { grid-column: auto; } }
     .floatui-cases.case-button {
@@ -1223,8 +1226,9 @@
 
   <div class="chatpanel" id="chatPanel">
     <div class="chat-head">
-      <span class="live-dot"></span>
-      <span class="chat-title">&#9679; LIVE CHAT</span>
+       <span class="live-dot"></span>
+       <button type="button" class="voice-call-active" id="voiceCallActive" onclick="toggleVoiceOverlay()">ANRUF AKTIV</button>
+       <span class="chat-title">&#9679; LIVE CHAT</span>
        <button class="btn mini voice-chat-button" onclick="toggleVoiceOverlay()" title="Voicechat öffnen">VOICE</button>
        <button class="chat-close" onclick="toggleChat()" title="Ausblenden">&#10005;</button>
     </div>
@@ -1574,7 +1578,7 @@
       const overlay = document.getElementById('voiceOverlay');
       overlay.classList.toggle('show');
       if (overlay.classList.contains('show')) { loadVoiceChannels(); if (!voiceUiTimer) voiceUiTimer = setInterval(function () { renderVoiceChannels(voiceChannelsState); }, 1000); if (!voiceChannelTimer) voiceChannelTimer = setInterval(loadVoiceChannels, 2000); }
-      else { if (voiceUiTimer) { clearInterval(voiceUiTimer); voiceUiTimer = null; } if (voiceChannelTimer) { clearInterval(voiceChannelTimer); voiceChannelTimer = null; } if (voiceChannelId) leaveVoiceChannel(); }
+      else { if (voiceUiTimer) { clearInterval(voiceUiTimer); voiceUiTimer = null; } if (voiceChannelTimer) { clearInterval(voiceChannelTimer); voiceChannelTimer = null; } }
     }
     async function loadVoiceChannels() {
       const data = await apiGet('/api/voice', getToken());
@@ -1603,6 +1607,7 @@
       const data = await api('/api/voice/join', { channel_id: id }, getToken());
       if (!data.success) { voiceStream.getTracks().forEach(function (t) { t.stop(); }); voiceStream = null; showMessage('voice-msg', data.error || 'Beitritt fehlgeschlagen.', 'error'); return; }
       voiceChannelId = id; voiceSignalId = 0; document.getElementById('voiceStatus').textContent = '● VERBUNDEN';
+      document.getElementById('voiceCallActive').classList.add('show');
       voiceMuted = false;
       watchVoiceAudio(getStoredUser().username, voiceStream, false);
       startVoiceActivity();
@@ -1621,6 +1626,7 @@
       if (voiceStream) voiceStream.getTracks().forEach(function (t) { t.stop(); });
       voiceStream = null; voiceChannelId = null; if (voicePollTimer) clearInterval(voicePollTimer); voicePollTimer = null;
       document.getElementById('voiceStatus').textContent = '● BEREIT'; loadVoiceChannels();
+      document.getElementById('voiceCallActive').classList.remove('show');
     }
     function toggleVoiceMute() { voiceMuted = !voiceMuted; if (voiceStream) voiceStream.getAudioTracks().forEach(function (track) { track.enabled = !voiceMuted; }); renderVoiceChannels(voiceChannelsState); }
     function watchVoiceAudio(name, stream, output) {
