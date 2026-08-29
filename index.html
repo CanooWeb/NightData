@@ -646,6 +646,28 @@
       .chatmin { right: 10px; bottom: 12px; top: auto; transform: none; }
       .floatui .rankpill { bottom: calc(12px + 45vh + 50px); left: 10px; }
       .floatui .floatui-admin { bottom: calc(12px + 45vh + 50px); right: 10px; top: auto; }
+      body { align-items: flex-start; }
+      #loginCard { width: calc(100% - 24px); max-width: 420px; margin: 12px; padding: 28px 20px; }
+      #main { padding: 16px 10px 120px; }
+      .topbar { align-items: flex-start; padding: 13px 14px; }
+      .topbar .brand { font-size: 16px; letter-spacing: 2px; }
+      .topbar .op { font-size: 11px; }
+      .hero { margin: 8px 0 18px; padding-bottom: 14px; }
+      .hero-title { letter-spacing: 5px; }
+      .panel-head { padding: 12px 14px; }
+      .panel-head h2 { font-size: 13px; letter-spacing: 2px; }
+      .panel-body { padding: 14px; }
+      .adminoverlay, .profileoverlay, .marketoverlay, .dmoverlay { padding: 12px 10px 70px; }
+      .admin-head { padding: 11px 13px; margin-bottom: 12px; }
+      .admin-head .brand { font-size: 14px; letter-spacing: 2px; }
+      .adm-tabs { padding: 10px 12px 0; overflow-x: auto; flex-wrap: nowrap; }
+      .adm-tabs button { flex: 0 0 auto; min-height: 40px; }
+      .adm-tab { padding: 14px; }
+      .admtable { display: block; overflow-x: auto; white-space: nowrap; }
+      .btn, .section-toggle, .t-info-toggle { min-height: 40px; }
+      .case-slots { flex-direction: column; }
+      .slot-card { min-width: 0; width: 100%; }
+      .market-form { gap: 4px; }
     }
     .chatpanel.hidden { display: none; }
     .hidden { display: none !important; }
@@ -705,6 +727,13 @@
       .topbar { padding: 12px 14px; }
       .panel-body { padding: 12px 14px; }
       #main { padding: 18px 10px 80px; }
+      .topbar > div:last-child { width: 100%; }
+      .topbar .op { display: block; margin-top: 4px; }
+      .ticket-form { gap: 10px; }
+      .ticket .t-top { align-items: flex-start; }
+      .ticket .t-status { flex-shrink: 0; }
+      .floatui .rankpill { right: 10px; }
+      .floatui .floatui-admin { min-width: 92px; }
     }
   </style>
 </head>
