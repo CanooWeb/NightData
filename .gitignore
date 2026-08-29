@@ -1,0 +1,20 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Datenbank (wird automatisch erstellt)
+users.db
+*.db
+*.db-journal
+
+# Umgebungsvariablen / Secrets
+.env
+.env.local
+.dev.vars
+
+# Cloudflare Wrangler
+.wrangler/
+
+# Betriebssystem
+.DS_Store
+Thumbs.db

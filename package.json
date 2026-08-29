@@ -1,0 +1,20 @@
+{
+  "name": "account-system",
+  "version": "1.0.0",
+  "description": "Login- und Registrierungssystem mit Node.js, Express und SQLite",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

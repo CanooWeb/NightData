@@ -1,0 +1,8 @@
+name = "nightdata-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nightdata"
+database_id = "ee634b3f-26de-41a8-94d0-ad32123f24f4"
