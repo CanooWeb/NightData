@@ -1551,7 +1551,7 @@
       const st = document.getElementById('caseStatusText');
       const btn = document.getElementById('btnOpenChest');
       document.getElementById('caseBox').classList.toggle('ready', !!caseState.canOpen);
-      btn.classList.toggle('hidden', !!caseState.canOpen);
+      btn.classList.toggle('hidden', !caseState.canOpen);
       if (caseState.canOpen) {
         st.textContent = 'Die Kiste ist bereit – eine Öffnung alle 24 Stunden.';
         cd.textContent = 'BEREIT';
