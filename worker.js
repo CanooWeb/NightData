@@ -1,5 +1,49 @@
 const FOUNDERS = ['Can2201'];
 
+const CHEST_COOLDOWN_MS = 86400000;
+
+const COSMETIC_ITEMS = [
+  { id: 'neon_blue',    cat: 'glow',  label: 'Neon Blau',        v: '#4da6ff', rarity: 'common' },
+  { id: 'neon_cyan',    cat: 'glow',  label: 'Neon Cyan',        v: '#7ae0e0', rarity: 'common' },
+  { id: 'neon_red',     cat: 'glow',  label: 'Neon Rot',         v: '#ff5252', rarity: 'rare' },
+  { id: 'neon_green',   cat: 'glow',  label: 'Neon Grün',        v: '#7bd389', rarity: 'rare' },
+  { id: 'neon_pink',    cat: 'glow',  label: 'Neon Pink',        v: '#ff4d6d', rarity: 'rare' },
+  { id: 'neon_gold',    cat: 'glow',  label: 'Neon Gold',        v: '#ffd166', rarity: 'epic' },
+  { id: 'neon_violet',  cat: 'glow',  label: 'Neon Violett',     v: '#8b3ff0', rarity: 'epic' },
+  { id: 'polar_white',  cat: 'glow',  label: 'Eis-Weiß',         v: '#e8ecff', rarity: 'legendary' },
+  { id: 'theme_violet', cat: 'color', label: 'Violette Kiste',   v: '#8b3ff0', rarity: 'common' },
+  { id: 'theme_mint',   cat: 'color', label: 'Minz-Kiste',       v: '#7bd389', rarity: 'common' },
+  { id: 'theme_ice',    cat: 'color', label: 'Eisblau-Kiste',    v: '#7ae0e0', rarity: 'rare' },
+  { id: 'theme_sunset', cat: 'color', label: 'Sonnenuntergang',  v: '#ff4d6d', rarity: 'rare' },
+  { id: 'theme_gold',   cat: 'color', label: 'Royal-Gold-Kiste', v: '#ffd166', rarity: 'epic' },
+  { id: 'theme_ember',  cat: 'color', label: 'Glut-Kiste',       v: '#ff9e5e', rarity: 'legendary' }
+];
+
+const RARITY_WEIGHT = { common: 60, rare: 25, epic: 11, legendary: 4 };
+const RARITY_LABEL = { common: 'Gewöhnlich', rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
+
+function cosmeticById(id) {
+  return COSMETIC_ITEMS.find(i => i.id === id) || null;
+}
+
+function dtToMs(sqlDt) {
+  try {
+    const t = Date.parse(String(sqlDt).replace(' ', 'T') + 'Z');
+    return Number.isFinite(t) ? t : null;
+  } catch (e) { return null; }
+}
+
+function rollCosmetic(pool) {
+  let total = 0;
+  const ws = pool.map(i => { const w = RARITY_WEIGHT[i.rarity] || 1; total += w; return w; });
+  let r = Math.random() * total;
+  for (let i = 0; i < pool.length; i++) {
+    r -= ws[i];
+    if (r <= 0) return pool[i];
+  }
+  return pool[pool.length - 1];
+}
+
 const DEFAULTS = {
   site_title: 'NightData',
   welcome_text: '',
@@ -97,6 +141,18 @@ export default {
       }
       if (url.pathname === '/api/users/profile' && request.method === 'GET') {
         return await handleUserInfo(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/chest/status' && request.method === 'GET') {
+        return await handleChestStatus(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/chest/open' && request.method === 'POST') {
+        return await handleChestOpen(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/inventory/equip' && request.method === 'POST') {
+        return await handleInventoryEquip(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/inventory/unequip' && request.method === 'POST') {
+        return await handleInventoryUnequip(request, env, corsHeaders);
       }
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
@@ -297,6 +353,23 @@ async function ensureSchema(env) {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS inventory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      obtained_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(username, item_id)
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS chest_opens (
+      username TEXT PRIMARY KEY,
+      last_open_at TEXT
+    )
+  `).run();
+  await env.DB.prepare('ALTER TABLE users ADD COLUMN glow_item TEXT').run().catch(() => {});
+  await env.DB.prepare('ALTER TABLE users ADD COLUMN color_item TEXT').run().catch(() => {});
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_fr_to ON friend_requests (to_user)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_dm_recip ON dm_messages (recipient, read)').run();
   const seedRoles = [
@@ -343,7 +416,7 @@ async function getAuthUser(request, env) {
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
   if (!session) return null;
 
-  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, glow_item, color_item FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user || user.banned) return null;
 
   return user;
@@ -491,12 +564,12 @@ async function handleProfileUpdate(request, env, corsHeaders) {
   await env.DB.prepare('UPDATE users SET avatar = ?, alias = ?, bio = ?, games = ? WHERE id = ?')
     .bind(avatar || null, alias || null, bio || null, games || null, user.id).run();
 
-  const updated = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role FROM users WHERE id = ?').bind(user.id).first();
+  const updated = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, glow_item, color_item FROM users WHERE id = ?').bind(user.id).first();
   return json({ success: true, user: updated }, 200, corsHeaders);
 }
 
 const CHAT_JOIN =
-  'SELECT m.id, m.author, m.message, m.created_at, u.avatar, u.alias, u.role, mu.until AS muted_until FROM chat_messages m LEFT JOIN users u ON u.username = m.author LEFT JOIN mutes mu ON mu.username = m.author';
+  'SELECT m.id, m.author, m.message, m.created_at, u.avatar, u.alias, u.role, u.glow_item, u.color_item, mu.until AS muted_until FROM chat_messages m LEFT JOIN users u ON u.username = m.author LEFT JOIN mutes mu ON mu.username = m.author';
 
 async function handleChatGet(request, env, corsHeaders) {
   const user = await getAuthUser(request, env);
@@ -664,15 +737,15 @@ async function handleFriendsGet(request, env, corsHeaders) {
   const me = user.username;
 
   const incoming = (await env.DB.prepare(
-    'SELECT fr.id, fr.from_user AS username, fr.created_at, u.avatar, u.alias, u.role FROM friend_requests fr JOIN users u ON u.username = fr.from_user WHERE fr.to_user = ? ORDER BY fr.id DESC'
+    'SELECT fr.id, fr.from_user AS username, fr.created_at, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM friend_requests fr JOIN users u ON u.username = fr.from_user WHERE fr.to_user = ? ORDER BY fr.id DESC'
   ).bind(me).all()).results;
 
   const outgoing = (await env.DB.prepare(
-    'SELECT fr.id, fr.to_user AS username, fr.created_at, u.avatar, u.alias, u.role FROM friend_requests fr JOIN users u ON u.username = fr.to_user WHERE fr.from_user = ? ORDER BY fr.id DESC'
+    'SELECT fr.id, fr.to_user AS username, fr.created_at, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM friend_requests fr JOIN users u ON u.username = fr.to_user WHERE fr.from_user = ? ORDER BY fr.id DESC'
   ).bind(me).all()).results;
 
   const friends = (await env.DB.prepare(
-    "SELECT f.user_a, f.user_b, f.created_at, u.username, u.avatar, u.alias, u.role FROM friends f JOIN users u ON u.username = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END WHERE f.user_a = ? OR f.user_b = ? ORDER BY f.id DESC"
+    "SELECT f.user_a, f.user_b, f.created_at, u.username, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM friends f JOIN users u ON u.username = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END WHERE f.user_a = ? OR f.user_b = ? ORDER BY f.id DESC"
   ).bind(me, me, me).all()).results;
 
   return json({ friends, incoming, outgoing }, 200, corsHeaders);
@@ -784,14 +857,16 @@ async function handleFriendRemove(request, env, corsHeaders) {
 }
 
 const DM_JOIN =
-  'SELECT m.id, m.sender, m.recipient, m.message, m.read, m.created_at, us.avatar AS sender_avatar, us.alias AS sender_alias, us.role AS sender_role, ut.avatar AS rec_avatar, ut.alias AS rec_alias, ut.role AS rec_role FROM dm_messages m LEFT JOIN users us ON us.username = m.sender LEFT JOIN users ut ON ut.username = m.recipient';
+  'SELECT m.id, m.sender, m.recipient, m.message, m.read, m.created_at, us.avatar AS sender_avatar, us.alias AS sender_alias, us.role AS sender_role, us.glow_item AS sender_glow, us.color_item AS sender_theme, ut.avatar AS rec_avatar, ut.alias AS rec_alias, ut.role AS rec_role, ut.glow_item AS rec_glow, ut.color_item AS rec_theme FROM dm_messages m LEFT JOIN users us ON us.username = m.sender LEFT JOIN users ut ON ut.username = m.recipient';
 
 async function peerUser(row, me) {
   return {
     username: row.sender === me ? row.recipient : row.sender,
     avatar: row.sender === me ? row.rec_avatar : row.sender_avatar,
     alias: row.sender === me ? row.rec_alias : row.sender_alias,
-    role: row.sender === me ? row.rec_role : row.sender_role
+    role: row.sender === me ? row.rec_role : row.sender_role,
+    glow: row.sender === me ? row.rec_glow : row.sender_glow,
+    theme: row.sender === me ? row.rec_theme : row.sender_theme
   };
 }
 
@@ -824,6 +899,8 @@ async function handleDmConversations(request, env, corsHeaders) {
       avatar: info ? info.avatar : null,
       alias: info ? info.alias : null,
       role: info ? info.role : null,
+      glow: info ? info.glow : null,
+      theme: info ? info.theme : null,
       last_message: last ? last.message : null,
       last_created: last ? last.created_at : null,
       last_sender: last ? last.sender : me,
@@ -867,7 +944,7 @@ async function handleDmMessages(request, env, corsHeaders) {
     DM_JOIN + ' WHERE ((m.sender = ? AND m.recipient = ?) OR (m.sender = ? AND m.recipient = ?)) AND m.id > ? ORDER BY m.id ASC LIMIT 100'
   ).bind(me, friend, friend, me, after).all()).results;
 
-  const contact = (await env.DB.prepare('SELECT username, avatar, alias, role FROM users WHERE username = ?').bind(friend).first());
+  const contact = (await env.DB.prepare('SELECT username, avatar, alias, role, glow_item, color_item FROM users WHERE username = ?').bind(friend).first());
   if (contact) {
     await env.DB.prepare('UPDATE dm_messages SET read = 1 WHERE recipient = ? AND sender = ?').bind(me, friend).run();
   }
@@ -913,7 +990,7 @@ async function handleUserInfo(request, env, corsHeaders) {
   const username = String(new URL(request.url).searchParams.get('username') || '').trim();
   if (!username) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
 
-  const u = await env.DB.prepare('SELECT username, avatar, alias, bio, games, role FROM users WHERE username = ?').bind(username).first();
+  const u = await env.DB.prepare('SELECT username, avatar, alias, bio, games, role, glow_item, color_item FROM users WHERE username = ?').bind(username).first();
   if (!u) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
 
   const postsCount = (await env.DB.prepare("SELECT COUNT(*) AS c FROM posts WHERE author = ?").bind(username).first()).c || 0;
@@ -931,9 +1008,101 @@ async function handleUserInfo(request, env, corsHeaders) {
   }
 
   return json({
-    user: { username: u.username, avatar: u.avatar, alias: u.alias, bio: u.bio || '', games: u.games || '', role: u.role },
+    user: { username: u.username, avatar: u.avatar, alias: u.alias, bio: u.bio || '', games: u.games || '', role: u.role, glow_item: u.glow_item, color_item: u.color_item },
     postsCount, ticketsCount, friendStatus
   }, 200, corsHeaders);
+}
+
+async function handleChestStatus(request, env, corsHeaders) {
+  const me = await getAuthUser(request, env);
+  if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const open = await env.DB.prepare('SELECT last_open_at FROM chest_opens WHERE username = ?').bind(me.username).first();
+  const lastMs = open ? dtToMs(open.last_open_at) : null;
+  const now = Date.now();
+  const canOpen = !lastMs || now - lastMs >= CHEST_COOLDOWN_MS;
+
+  const owned = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results.map(r => r.item_id);
+
+  return json({
+    success: true,
+    canOpen,
+    next_open_at: canOpen ? null : (lastMs + CHEST_COOLDOWN_MS),
+    items: COSMETIC_ITEMS,
+    owned,
+    equipped: { glow: me.glow_item, color: me.color_item }
+  }, 200, corsHeaders);
+}
+
+async function handleChestOpen(request, env, corsHeaders) {
+  const me = await getAuthUser(request, env);
+  if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const now = Date.now();
+  const open = await env.DB.prepare('SELECT last_open_at FROM chest_opens WHERE username = ?').bind(me.username).first();
+  const lastMs = open ? dtToMs(open.last_open_at) : null;
+  if (lastMs && now - lastMs < CHEST_COOLDOWN_MS) {
+    return json({ error: 'Diese Kiste wurde bereits geöffnet. Nächste in ' + Math.ceil((CHEST_COOLDOWN_MS - (now - lastMs)) / 3600000) + ' Std.', next_open_at: lastMs + CHEST_COOLDOWN_MS }, 429, corsHeaders);
+  }
+
+  const ownedRows = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results;
+  const ownedSet = new Set(ownedRows.map(r => r.item_id));
+  const pool = COSMETIC_ITEMS.filter(i => !ownedSet.has(i.id));
+  if (!pool.length) {
+    return json({ error: 'Du hast bereits alle Items dieser Kiste gesammelt.' }, 409, corsHeaders);
+  }
+
+  const item = rollCosmetic(pool);
+
+  await env.DB.prepare('INSERT INTO inventory (username, item_id, obtained_at) VALUES (?, ?, datetime(\'now\'))').bind(me.username, item.id).run();
+  await env.DB.prepare('INSERT INTO chest_opens (username, last_open_at) VALUES (?, datetime(\'now\')) ON CONFLICT(username) DO UPDATE SET last_open_at = excluded.last_open_at').bind(me.username).run();
+
+  const owned = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results.map(r => r.item_id);
+  const fresh = await env.DB.prepare('SELECT glow_item, color_item FROM users WHERE username = ?').bind(me.username).first();
+
+  return json({
+    success: true,
+    item,
+    next_open_at: now + CHEST_COOLDOWN_MS,
+    owned,
+    equipped: { glow: fresh.glow_item, color: fresh.color_item }
+  }, 200, corsHeaders);
+}
+
+async function handleInventoryEquip(request, env, corsHeaders) {
+  const me = await getAuthUser(request, env);
+  if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const itemId = String(body.item_id || '');
+  const item = cosmeticById(itemId);
+  if (!item) return json({ error: 'Item existiert nicht.' }, 400, corsHeaders);
+
+  const owned = await env.DB.prepare('SELECT id FROM inventory WHERE username = ? AND item_id = ?').bind(me.username, item.id).first();
+  if (!owned) return json({ error: 'Du besitzt dieses Item nicht.' }, 403, corsHeaders);
+
+  const col = item.cat === 'color' ? 'color_item' : 'glow_item';
+  await env.DB.prepare(`UPDATE users SET ${col} = ? WHERE username = ?`).bind(item.id, me.username).run();
+
+  const fresh = await env.DB.prepare('SELECT glow_item, color_item FROM users WHERE username = ?').bind(me.username).first();
+  return json({ success: true, equipped: { glow: fresh.glow_item, color: fresh.color_item } }, 200, corsHeaders);
+}
+
+async function handleInventoryUnequip(request, env, corsHeaders) {
+  const me = await getAuthUser(request, env);
+  if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const cat = String(body.cat || '');
+  if (cat !== 'glow' && cat !== 'color') return json({ error: 'Ungültige Kategorie.' }, 400, corsHeaders);
+
+  const col = cat === 'color' ? 'color_item' : 'glow_item';
+  await env.DB.prepare(`UPDATE users SET ${col} = NULL WHERE username = ?`).bind(me.username).run();
+
+  const fresh = await env.DB.prepare('SELECT glow_item, color_item FROM users WHERE username = ?').bind(me.username).first();
+  return json({ success: true, equipped: { glow: fresh.glow_item, color: fresh.color_item } }, 200, corsHeaders);
 }
 
 async function handleFeed(request, env, corsHeaders, settings) {
@@ -1235,6 +1404,8 @@ async function handleAdminUserDelete(request, env, corsHeaders) {
   await env.DB.prepare('DELETE FROM friend_requests WHERE from_user = ? OR to_user = ?').bind(user.username, user.username).run();
   await env.DB.prepare('DELETE FROM friends WHERE user_a = ? OR user_b = ?').bind(user.username, user.username).run();
   await env.DB.prepare('DELETE FROM dm_messages WHERE sender = ? OR recipient = ?').bind(user.username, user.username).run();
+  await env.DB.prepare('DELETE FROM inventory WHERE username = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM chest_opens WHERE username = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
 
   return json({ success: true }, 200, corsHeaders);

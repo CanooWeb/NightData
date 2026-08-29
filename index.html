@@ -434,7 +434,47 @@
         right: 10px; left: 10px; width: auto; top: auto; transform: none;
         bottom: calc(12px + 45vh + 10px);
       }
+      .floatui-cases { left: 10px; top: 10px; transform: none; }
     }
+    .floatui-cases {
+      position: fixed; left: 18px; top: 50%; transform: translateY(-50%); z-index: 8;
+      pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+    }
+    .case-stage { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px 10px 6px; text-align: center; }
+    .case-box {
+      position: relative; width: 150px; height: 150px; border-radius: 18px;
+      background: linear-gradient(135deg, #1c1030, #0a0c14);
+      border: 2px solid rgba(139,63,240,0.6); box-shadow: 0 0 30px rgba(139,63,240,0.4);
+      display: flex; align-items: center; justify-content: center; transition: all .3s;
+    }
+    .case-box .case-chest-icon { font-size: 58px; filter: drop-shadow(0 0 10px rgba(139,63,240,0.8)); }
+    .case-box.ready { border-color: rgba(122,224,224,0.8); box-shadow: 0 0 34px rgba(122,224,224,0.55); animation: casepulse 1.8s infinite; }
+    @keyframes casepulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+    .case-cd { font-family: 'Share Tech Mono',monospace; color: #7ae0e0; letter-spacing: 2px; font-size: 18px; }
+    .case-status { color: #9a6fd8; font-family: 'Share Tech Mono',monospace; font-size: 12px; letter-spacing: 1px; min-height: 16px; }
+    .case-reveal { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; border: 1px solid rgba(139,63,240,0.4); border-radius: 14px; background: rgba(10,12,20,0.7); }
+    .case-reveal .cr-rarity { font-family: 'Share Tech Mono',monospace; letter-spacing: 2px; font-size: 13px; text-transform: uppercase; }
+    .case-reveal .cr-item { font-family: 'Orbitron',sans-serif; font-weight: 900; font-size: 20px; letter-spacing: 2px; text-transform: uppercase; padding: 14px 24px; border-radius: 12px; border: 2px solid; }
+    .case-slots { display: flex; gap: 12px; flex-wrap: wrap; }
+    .slot-card { flex: 1; min-width: 180px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border: 1px solid rgba(139,63,240,0.4); border-radius: 10px; background: rgba(10,12,20,0.6); }
+    .slot-label { font-family: 'Share Tech Mono',monospace; font-size: 10px; letter-spacing: 2px; color: #9a6fd8; text-transform: uppercase; }
+    .slot-name { font-family: 'Orbitron',sans-serif; font-weight: 700; text-shadow: 0 0 10px currentColor; }
+    .slot-name.dim { color: #5b4b78; text-shadow: none; }
+    .slot-empty { color: #5b4b78; font-family: 'Share Tech Mono',monospace; }
+    .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; }
+    .inv-item { padding: 14px 10px 10px; border-radius: 12px; border: 1px dashed rgba(139,63,240,0.3); background: rgba(10,12,20,0.5); text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    .inv-item.owned { border-style: solid; background: rgba(18,12,32,0.7); }
+    .inv-item.locked { opacity: 0.45; }
+    .inv-item .inv-name { font-family: 'Share Tech Mono',monospace; font-size: 13px; letter-spacing: 1px; }
+    .inv-item .inv-rarity { font-family: 'Share Tech Mono',monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .inv-dot { width: 34px; height: 34px; border-radius: 8px; }
+    .inv-lock { font-size: 26px; color: #5b4b78; }
+    .r-common { color: #9a6fd8; }
+    .r-rare { color: #4da6ff; }
+    .r-epic { color: #ffd166; }
+    .r-legendary { color: #ff4d6d; text-shadow: 0 0 12px rgba(255,77,109,0.8); }
+    .prof-equip { display: flex; gap: 10px; flex-wrap: wrap; }
+    .prof-equip .tool { flex: 1; min-width: 160px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 14px; border: 1px solid rgba(139,63,240,0.4); border-radius: 10px; background: rgba(10,12,20,0.6); }
     .badge {
       display: inline-block; background: #ff5252; color: #fff; border-radius: 999px;
       font-family: 'Share Tech Mono', monospace; font-size: 10px; line-height: 1;
@@ -688,6 +728,7 @@
     </div>
     <button class="btn ok adminonly floatui-admin" id="btnAdmin" onclick="openAdmin()">◈ Admin</button>
     <button class="btn mini floatui-friends" id="btnFriends" onclick="toggleDmOverlay()" title="Freunde & Nachrichten">&#9679; <span id="reqBadge" class="badge reqbadge hidden" title="Offene Freundschaftsanfragen">+</span><span id="dmBadge" class="badge hidden">0</span> Freunde</button>
+    <button class="btn mini floatui-cases" id="btnCases" onclick="toggleCaseOverlay()" title="Kisten-Opening – 1× alle 24 Stunden">&#128230; Kiste</button>
     <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
   </div>
 
@@ -894,6 +935,10 @@
             <textarea id="prof-games" maxlength="500" placeholder="z.B.&NewLine;GTA RP (FiveM)&NewLine;Valorant" rows="3"></textarea>
             <div id="prof-games-chips"></div>
           </div>
+          <div class="form-group">
+            <label>Ausrüstung (aus Kisten)</label>
+            <div class="prof-equip" id="profEquip"><span class="slot-name dim">Lade…</span></div>
+          </div>
           <button type="submit" id="btnSaveProfile" onclick="saveProfile()">Profil speichern</button>
           <div id="prof-msg" class="message"></div>
         </div>
@@ -942,6 +987,39 @@
           <button class="btn mini" onclick="sendDm()">&#10148;</button>
         </div>
         <div class="chat-tip" id="dmTip">Nur zwischen dir und deinem Freund sichtbar</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dmoverlay" id="caseOverlay">
+    <div class="shell">
+      <div class="admin-head">
+        <div class="brand">&#128230; KISTEN-OPENING</div>
+        <button class="btn danger" onclick="toggleCaseOverlay()">Schließen</button>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Predicts-Kiste</h2>
+          <span class="live">● 24H COOLDOWN</span>
+        </div>
+        <div class="panel-body">
+          <div class="case-stage">
+            <div class="case-box" id="caseBox"><span class="case-chest-icon">&#128230;</span></div>
+            <div class="case-cd" id="caseCountdown">Lade…</div>
+            <div class="case-status" id="caseStatusText">Lade…</div>
+            <button class="btn ok" id="btnOpenChest" onclick="openChest()">&#128230; Kiste öffnen</button>
+            <div id="caseReveal" class="case-reveal hidden"></div>
+          </div>
+          <div class="section-divider"></div>
+          <h3>Ausgerüstet</h3>
+          <div class="case-slots">
+            <div class="slot-card" id="slotGlow"></div>
+            <div class="slot-card" id="slotTheme"></div>
+          </div>
+          <div class="section-divider"></div>
+          <h3>Deine Sammlung</h3>
+          <div class="inv-grid" id="caseInv"><div class="empty">Lade…</div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1166,6 +1244,32 @@
       member: '#9a6fd8'
     };
 
+    const COSMETICS = [
+      { id: 'neon_blue',    cat: 'glow',  label: 'Neon Blau',        v: '#4da6ff', rarity: 'common' },
+      { id: 'neon_cyan',    cat: 'glow',  label: 'Neon Cyan',        v: '#7ae0e0', rarity: 'common' },
+      { id: 'neon_red',     cat: 'glow',  label: 'Neon Rot',         v: '#ff5252', rarity: 'rare' },
+      { id: 'neon_green',   cat: 'glow',  label: 'Neon Grün',        v: '#7bd389', rarity: 'rare' },
+      { id: 'neon_pink',    cat: 'glow',  label: 'Neon Pink',        v: '#ff4d6d', rarity: 'rare' },
+      { id: 'neon_gold',    cat: 'glow',  label: 'Neon Gold',        v: '#ffd166', rarity: 'epic' },
+      { id: 'neon_violet',  cat: 'glow',  label: 'Neon Violett',     v: '#8b3ff0', rarity: 'epic' },
+      { id: 'polar_white',  cat: 'glow',  label: 'Eis-Weiß',         v: '#e8ecff', rarity: 'legendary' },
+      { id: 'theme_violet', cat: 'color', label: 'Violette Kiste',   v: '#8b3ff0', rarity: 'common' },
+      { id: 'theme_mint',   cat: 'color', label: 'Minz-Kiste',       v: '#7bd389', rarity: 'common' },
+      { id: 'theme_ice',    cat: 'color', label: 'Eisblau-Kiste',    v: '#7ae0e0', rarity: 'rare' },
+      { id: 'theme_sunset', cat: 'color', label: 'Sonnenuntergang',  v: '#ff4d6d', rarity: 'rare' },
+      { id: 'theme_gold',   cat: 'color', label: 'Royal-Gold-Kiste', v: '#ffd166', rarity: 'epic' },
+      { id: 'theme_ember',  cat: 'color', label: 'Glut-Kiste',       v: '#ff9e5e', rarity: 'legendary' }
+    ];
+    const RARITY_CSS = { common: 'r-common', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary' };
+    const RARITY_TXT = { common: 'Gewöhnlich', rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
+
+    function cosmeticColorById(id) {
+      if (!id) return null;
+      try { const it = COSMETICS.find(function (i) { return i.id === id; }); return it ? it.v : null; } catch (e) { return null; }
+    }
+    function glowColorOf(u) { return cosmeticColorById(u && (u.glow_item || u.glow || u.sender_glow)); }
+    function themeColorOf(u) { return cosmeticColorById(u && (u.color_item || u.theme || u.sender_theme)); }
+
     function buildRoleColorMap(roles) {
       if (!roles || !roles.length) return;
       roleColorMap = {};
@@ -1178,7 +1282,8 @@
       const badge = document.getElementById('topRole');
       if (!badge) return;
       const role = (u.role || 'member').toLowerCase();
-      const color = roleColorMap[role] || roleColorMap.member || '#9a6fd8';
+      const glow = glowColorOf(u);
+      const color = glow || roleColorMap[role] || roleColorMap.member || '#9a6fd8';
       badge.textContent = role.toUpperCase();
       badge.style.color = color;
       badge.style.borderColor = color;
@@ -1187,14 +1292,19 @@
 
     function updateRankPill(user) {
       const u = user || getStoredUser();
-      document.getElementById('topUsername').textContent = escapeHtml((u.alias || u.username || '—')).toUpperCase();
+      const glow = glowColorOf(u);
+      const uname = document.getElementById('topUsername');
+      uname.textContent = escapeHtml((u.alias || u.username || '—')).toUpperCase();
+      uname.style.color = glow || '';
       const av = document.getElementById('rankAvatar');
       if (u.avatar) {
         av.src = u.avatar;
         av.classList.remove('hidden');
+        av.style.boxShadow = glow ? '0 0 12px ' + glow : '';
       } else {
         av.classList.add('hidden');
         av.removeAttribute('src');
+        av.style.boxShadow = '';
       }
       applyBadgeColor(u);
     }
@@ -1226,9 +1336,11 @@
 
     function chatMsgHtml(m) {
       const name = m.alias || m.author || '???';
-      const color = roleColorMap[m.role] || roleColorMap.member || '#9a6fd8';
+      const glow = glowColorOf(m);
+      const color = glow || roleColorMap[m.role] || roleColorMap.member || '#9a6fd8';
+      const avRing = glow ? ' style="box-shadow:0 0 12px ' + glow + '"' : '';
       const av = m.avatar
-        ? '<img class="c-av" src="' + escapeHtml(m.avatar) + '" alt="">'
+        ? '<img class="c-av" src="' + escapeHtml(m.avatar) + '" alt=""' + avRing + '>'
         : '<span class="c-av c-av-ph" style="color:' + color + '">' + escapeHtml((name[0] || '?').toUpperCase()) + '</span>';
       const role = m.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '';
       const mutedTag = m.muted_until ? '<span class="c-role muted-tag" style="color:#ff5252;border-color:#ff5252">STUMM</span>' : '';
@@ -1396,15 +1508,233 @@
       if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
     }
 
+    let caseState = { canOpen: true, next_open_at: null, owned: [], equipped: { glow: null, color: null } };
+    let caseCdTimer = null;
+
+    function toggleCaseOverlay() {
+      const ov = document.getElementById('caseOverlay');
+      if (ov.classList.contains('show')) closeCaseOverlay();
+      else openCaseOverlay();
+    }
+
+    function openCaseOverlay() {
+      document.getElementById('caseOverlay').classList.add('show');
+      loadCase();
+      startCaseCd();
+    }
+
+    function closeCaseOverlay() {
+      const ov = document.getElementById('caseOverlay');
+      ov.classList.remove('show');
+      stopCaseCd();
+    }
+
+    async function loadCase() {
+      const token = getToken();
+      if (!token) return;
+      const data = await apiGet('/api/chest/status', token);
+      if (!data || !data.success) { if (data && (data.error === 'Nicht angemeldet.' || data.error === 'Konto gesperrt.')) doLogout(); return; }
+      caseState = { canOpen: !!data.canOpen, next_open_at: data.next_open_at, owned: data.owned || [], equipped: data.equipped || { glow: null, color: null } };
+      document.getElementById('caseReveal').classList.add('hidden');
+      document.getElementById('caseReveal').innerHTML = '';
+      renderCase();
+    }
+
+    function renderCase() {
+      renderCaseStatus();
+      renderCaseSlots();
+      renderCaseInv();
+    }
+
+    function renderCaseStatus() {
+      const cd = document.getElementById('caseCountdown');
+      const st = document.getElementById('caseStatusText');
+      const btn = document.getElementById('btnOpenChest');
+      document.getElementById('caseBox').classList.toggle('ready', !!caseState.canOpen);
+      btn.classList.toggle('hidden', !!caseState.canOpen);
+      if (caseState.canOpen) {
+        st.textContent = 'Die Kiste ist bereit – eine Öffnung alle 24 Stunden.';
+        cd.textContent = 'BEREIT';
+        return;
+      }
+      st.textContent = 'Kiste wurde geöffnet. Nächste Öffnung in:';
+      cd.textContent = formatCountdown((caseState.next_open_at || 0) - Date.now());
+    }
+
+    function formatCountdown(ms) {
+      if (ms <= 0) return '00:00:00';
+      const s = Math.floor(ms / 1000);
+      const h = String(Math.floor(s / 3600)).padStart(2, '0');
+      const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+      const sec = String(s % 60).padStart(2, '0');
+      return h + ':' + m + ':' + sec;
+    }
+
+    function startCaseCd() {
+      stopCaseCd();
+      caseCdTimer = setInterval(function () {
+        if (caseState.canOpen) return;
+        if ((caseState.next_open_at || 0) - Date.now() <= 0) {
+          caseState.canOpen = true;
+          caseState.next_open_at = null;
+          renderCaseStatus();
+          return;
+        }
+        renderCaseStatus();
+      }, 1000);
+    }
+
+    function stopCaseCd() {
+      if (caseCdTimer) { clearInterval(caseCdTimer); caseCdTimer = null; }
+    }
+
+    function renderCaseSlots() {
+      document.getElementById('slotGlow').innerHTML = slotToolHtml('glow', 'Glow-Effekt');
+      document.getElementById('slotTheme').innerHTML = slotToolHtml('color', 'Farbe / Thema');
+    }
+
+    function slotToolHtml(cat, label) {
+      const id = (caseState.equipped || {})[cat];
+      const item = COSMETICS.find(function (i) { return i.id === id; });
+      if (item) {
+        return '<div><div class="slot-label">' + label + '</div><span class="slot-name" style="color:' + item.v + '">' + escapeHtml(item.label) + '</span></div>' +
+          '<button class="btn mini danger" onclick="unequipItem(\'' + cat + '\')">Abnehmen</button>';
+      }
+      return '<div><div class="slot-label">' + label + '</div><span class="slot-name dim">Leer</span></div><span class="slot-empty">—</span>';
+    }
+
+    function renderCaseInv() {
+      const box = document.getElementById('caseInv');
+      const owned = new Set(caseState.owned || []);
+      const eq = caseState.equipped || {};
+      const cards = COSMETICS.map(function (it) {
+        const isOwned = owned.has(it.id);
+        const isEquipped = eq[it.cat] === it.id;
+        const rCls = RARITY_CSS[it.rarity] || 'r-common';
+        let action = '';
+        if (isEquipped) action = '<div class="slot-name" style="color:currentColor">AUSGERÜSTET</div>';
+        else if (isOwned) action = '<button class="btn mini ok" onclick="equipItem(\'' + it.id + '\')">Ausrüsten</button>';
+        return '<div class="inv-item ' + (isOwned ? 'owned' : 'locked') + '">' +
+          (isOwned
+            ? '<div class="inv-dot ' + rCls + '" style="background:' + it.v + ';box-shadow:0 0 12px ' + it.v + '"></div>'
+            : '<div class="inv-lock">?</div>') +
+          '<div class="inv-name ' + rCls + '">' + (isOwned ? escapeHtml(it.label) : '???') + '</div>' +
+          '<div class="inv-rarity ' + rCls + '">' + RARITY_TXT[it.rarity] + '</div>' +
+          action + '</div>';
+      });
+      box.innerHTML = cards.join('');
+    }
+
+    async function openChest() {
+      const token = getToken();
+      if (!token) return;
+      const btn = document.getElementById('btnOpenChest');
+      if (btn.dataset.busy) return;
+      btn.dataset.busy = '1';
+      try {
+        const data = await api('/api/chest/open', {}, token);
+        const st = document.getElementById('caseStatusText');
+        if (!data.success) {
+          st.textContent = data.error || 'Fehler beim Öffnen.';
+          if (data.next_open_at) { caseState.next_open_at = data.next_open_at; caseState.canOpen = false; renderCaseStatus(); }
+          return;
+        }
+        caseState.owned = data.owned || caseState.owned;
+        caseState.next_open_at = data.next_open_at;
+        caseState.canOpen = false;
+        const reveal = document.getElementById('caseReveal');
+        const rCls = RARITY_CSS[data.item.rarity] || 'r-common';
+        reveal.innerHTML =
+          '<div class="cr-rarity ' + rCls + '">+' + RARITY_TXT[data.item.rarity] + '!</div>' +
+          '<div class="cr-item ' + rCls + '" style="color:' + data.item.v + ';border-color:' + data.item.v + ';box-shadow:0 0 30px ' + data.item.v + '">' + escapeHtml(data.item.label) + '</div>' +
+          '<div class="case-status">' + (data.item.cat === 'glow' ? 'Glow-Effekt, den du überall im Profil/Chat siehst' : 'Farbe/Thema für deine Profilkarte') + '</div>' +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">' +
+          '<button class="btn ok" onclick="equipItem(\'' + data.item.id + '\')">Ausrüsten</button>' +
+          '<button class="btn mini" onclick="document.getElementById(\'caseReveal\').classList.add(\'hidden\')">Ok</button>' +
+          '</div>';
+        reveal.classList.remove('hidden');
+        renderCase();
+      } finally {
+        delete btn.dataset.busy;
+      }
+    }
+
+    async function equipItem(itemId) {
+      const token = getToken();
+      if (!token) return;
+      const data = await api('/api/inventory/equip', { item_id: itemId }, token);
+      const st = document.getElementById('caseStatusText');
+      if (!data.success) { st.textContent = data.error || 'Fehler.'; return; }
+      caseState.equipped = data.equipped;
+      const u = getStoredUser();
+      u.glow_item = data.equipped.glow;
+      u.color_item = data.equipped.color;
+      localStorage.setItem('user', JSON.stringify(u));
+      updateRankPill(u);
+      renderCaseSlots();
+      renderCaseInv();
+    }
+
+    async function unequipItem(cat) {
+      const token = getToken();
+      if (!token) return;
+      const data = await api('/api/inventory/unequip', { cat: cat }, token);
+      const st = document.getElementById('caseStatusText');
+      if (!data.success) { st.textContent = data.error || 'Fehler.'; return; }
+      caseState.equipped = data.equipped;
+      const u = getStoredUser();
+      u.glow_item = data.equipped.glow;
+      u.color_item = data.equipped.color;
+      localStorage.setItem('user', JSON.stringify(u));
+      updateRankPill(u);
+      renderCaseSlots();
+      renderCaseInv();
+    }
+
+    function renderProfEquip(u) {
+      const box = document.getElementById('profEquip');
+      const slots = [
+        { cat: 'glow', label: 'Glow-Effekt', id: u.glow_item },
+        { cat: 'color', label: 'Farbe / Thema', id: u.color_item }
+      ];
+      box.innerHTML = slots.map(function (s) {
+        const item = COSMETICS.find(function (i) { return i.id === s.id; });
+        const inner = item
+          ? '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;"><span class="slot-name" style="color:' + item.v + '">' + escapeHtml(item.label) + '</span>' +
+            '<button class="btn mini danger" onclick="unequipProfile(\'' + s.cat + '\')">Abnehmen</button></div>'
+          : '<span class="slot-name dim">Leer</span>';
+        return '<div class="tool"><div class="slot-label">' + s.label + '</div>' + inner + '</div>';
+      }).join('');
+    }
+
+    async function unequipProfile(cat) {
+      const token = getToken();
+      if (!token) return;
+      const data = await api('/api/inventory/unequip', { cat: cat }, token);
+      if (!data.success) { showMessage('prof-msg', data.error || 'Fehler.', 'error'); return; }
+      const u = getStoredUser();
+      u.glow_item = data.equipped.glow;
+      u.color_item = data.equipped.color;
+      localStorage.setItem('user', JSON.stringify(u));
+      updateRankPill(u);
+      loadProfile();
+      showMessage('prof-msg', 'Abgenommen.', 'success');
+    }
+
     function friendAvatarHtml(u) {
-      const color = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
-      if (u.avatar) return '<img class="c-av" src="' + escapeHtml(u.avatar) + '" alt="">';
+      const glow = glowColorOf(u);
+      const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      if (u.avatar) {
+        const ring = glow ? ' style="box-shadow:0 0 10px ' + glow + '"' : '';
+        return '<img class="c-av" src="' + escapeHtml(u.avatar) + '" alt=""' + ring + '>';
+      }
       const initial = (u.alias || u.username || '?').charAt(0).toUpperCase();
       return '<span class="c-av c-av-ph" style="color:' + color + '">' + escapeHtml(initial) + '</span>';
     }
 
     function friendNameHtml(u) {
-      const color = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      const glow = glowColorOf(u);
+      const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       const name = u.alias || u.username || '???';
       const badge = u.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
       return '<div class="f-line"><span class="f-name" style="color:' + color + '">' + escapeHtml(name) + '</span>' + badge + '</div><div class="f-sub">' + escapeHtml(u.username || '') + '</div>';
@@ -1466,7 +1796,8 @@
         return;
       }
       box.innerHTML = '<h3>Nachrichten</h3>' + convs.map(function (c) {
-        const color = roleColorMap[c.role] || roleColorMap.member || '#9a6fd8';
+        const glow = glowColorOf(c);
+        const color = glow || roleColorMap[c.role] || roleColorMap.member || '#9a6fd8';
         const name = c.alias || c.username;
         const badge = c.unread > 0 ? '<span class="badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '';
         const time = c.last_created ? '<span class="f-time">' + chatTime(c.last_created) + '</span>' : '';
@@ -1562,7 +1893,8 @@
     }
 
     function dmMsgHtml(m, isMe) {
-      const color = roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
+      const glow = glowColorOf(m);
+      const color = glow || roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
       const name = m.sender_alias || m.sender;
       let meta = '';
       if (!isMe) {
@@ -1595,7 +1927,8 @@
       const me = getStoredUser().username;
       const box = document.getElementById('dmMsgs');
       if (dmLastId === 0 && data.friend) {
-        const color = roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
+        const fGlow = cosmeticColorById(data.friend.glow_item);
+        const color = fGlow || roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
         const name = data.friend.alias || data.friend.username;
         document.getElementById('dmThreadName').innerHTML =
           friendAvatarHtml(data.friend) + '<span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
@@ -1783,12 +2116,20 @@
         document.getElementById('upStats').textContent = '';
         document.getElementById('upGames').innerHTML = '';
         box.style.opacity = '';
+        box.style.borderColor = '';
+        box.style.boxShadow = '';
         return;
       }
       const u = data.user;
-      const color = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      const glow = glowColorOf(u);
+      const theme = themeColorOf(u);
+      const frame = glow || theme || '#8b3ff0';
+      box.style.borderColor = frame;
+      box.style.boxShadow = '0 16px 50px rgba(0,0,0,0.6), 0 0 22px ' + frame + '88';
+      const avRing = glow ? ' style="box-shadow:0 0 18px ' + glow + '"' : '';
+      const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       wrap.innerHTML = u.avatar
-        ? '<img class="up-avatar" src="' + escapeHtml(u.avatar) + '" alt="">'
+        ? '<img class="up-avatar" src="' + escapeHtml(u.avatar) + '" alt=""' + avRing + '>'
         : '<span class="up-avatar-ph" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(((u.alias || u.username || '?').charAt(0)).toUpperCase()) + '</span>';
       document.getElementById('upName').innerHTML =
         '<span style="color:' + color + '">' + escapeHtml(u.alias || u.username) + '</span>' +
@@ -1947,6 +2288,7 @@
       loadFeed();
       startChat();
       document.getElementById('btnFriends').classList.remove('hidden');
+      document.getElementById('btnCases').classList.remove('hidden');
       updateDmSoundBtn();
       if (dmUnreadTimer) clearInterval(dmUnreadTimer);
       pollDmUnread();
@@ -2021,6 +2363,15 @@
         prev.removeAttribute('data-current');
       }
       updateRankPill(u);
+      const pGlow = glowColorOf(u);
+      const pTheme = themeColorOf(u);
+      const pFrame = pGlow || pTheme || '#8b3ff0';
+      const ppanel = document.getElementById('profilePanel');
+      ppanel.style.borderColor = pFrame;
+      ppanel.style.boxShadow = '0 0 26px ' + pFrame + '55';
+      const pav = document.getElementById('prof-avatar-preview');
+      if (pGlow || pTheme) pav.style.boxShadow = '0 0 20px ' + (pGlow || pTheme);
+      renderProfEquip(u);
     }
 
     async function saveProfile() {
@@ -2065,12 +2416,14 @@
       closeProfile();
       closeDmOverlay();
       closeUserPopup();
+      closeCaseOverlay();
       stopChatPolling();
       hideChat();
       if (dmUnreadTimer) { clearInterval(dmUnreadTimer); dmUnreadTimer = null; }
       if (reqUnreadTimer) { clearInterval(reqUnreadTimer); reqUnreadTimer = null; }
       document.getElementById('reqBadge').classList.add('hidden');
       document.getElementById('btnFriends').classList.add('hidden');
+      document.getElementById('btnCases').classList.add('hidden');
       document.getElementById('main').classList.remove('active');
       document.getElementById('loginCard').classList.remove('hidden');
       window.scrollTo(0, 0);
