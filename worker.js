@@ -334,6 +334,7 @@ async function handleMe(request, env, corsHeaders) {
 
 async function handleFeed(request, env, corsHeaders, settings) {
   const me = await getAuthUser(request, env);
+  await cleanupExpiredAnnouncements(env);
 
   const announcements = (await env.DB.prepare(
     "SELECT id, title, body, author, file_key, created_at FROM posts WHERE kind = 'announcement' AND (expires_at IS NULL OR julianday(expires_at) > julianday('now')) ORDER BY id DESC LIMIT 10"
@@ -649,6 +650,8 @@ async function handleAdminPostDelete(request, env, corsHeaders) {
   const id = Number(body.id);
   if (!id) return json({ error: 'Ungültige ID.' }, 400, corsHeaders);
 
+  const post = await env.DB.prepare('SELECT id, file_key FROM posts WHERE id = ?').bind(id).first();
+  if (post && post.file_key) await destroyCloudinaryAsset(env, post.file_key);
   await env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
   return json({ success: true }, 200, corsHeaders);
 }
@@ -699,6 +702,38 @@ async function roleExists(role, env) {
   if (['founder', 'moderator', 'member'].includes(role)) return true;
   const r = await env.DB.prepare('SELECT id FROM custom_roles WHERE name = ?').bind(role).first();
   return !!r;
+}
+
+async function destroyCloudinaryAsset(env, secureUrl) {
+  try {
+    const m = String(secureUrl || '').match(/\/v\d+\/(.+)$/);
+    if (!m || !env.CLOUDINARY_CLOUD || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) return;
+    const publicId = m[1].split('?')[0].replace(/\.[A-Za-z0-9]{2,5}$/, '');
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const toSign = `invalidate=true&public_id=${publicId}&timestamp=${timestamp}`;
+    const signature = await sha1Hex(toSign + env.CLOUDINARY_API_SECRET);
+    const form = new FormData();
+    form.append('public_id', publicId);
+    form.append('timestamp', timestamp);
+    form.append('api_key', env.CLOUDINARY_API_KEY);
+    form.append('signature', signature);
+    form.append('invalidate', 'true');
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD}/image/destroy`, {
+      method: 'POST',
+      body: form,
+    });
+  } catch (e) {}
+}
+
+async function cleanupExpiredAnnouncements(env) {
+  const expired = (await env.DB.prepare(
+    "SELECT id, file_key FROM posts WHERE kind = 'announcement' AND expires_at IS NOT NULL AND julianday(expires_at) <= julianday('now')"
+  ).all()).results;
+  if (!expired.length) return;
+  for (const p of expired) {
+    if (p.file_key) await destroyCloudinaryAsset(env, p.file_key);
+    await env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(p.id).run();
+  }
 }
 
 async function handleAdminRolesList(request, env, corsHeaders) {
