@@ -179,6 +179,9 @@ export default {
       if (url.pathname === '/api/market/list' && request.method === 'POST') {
         return await handleMarketList(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/market/sell' && request.method === 'POST') {
+        return await handleMarketSell(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/market/buy' && request.method === 'POST') {
         return await handleMarketBuy(request, env, corsHeaders);
       }
@@ -1263,14 +1266,27 @@ async function handleMarketList(request, env, corsHeaders) {
   const mode = String(body.mode || 'sale');
   const wanted = cosmeticById(String(body.wanted_item_id || ''));
   const quantity = Number(body.quantity);
-  if (!item || !['sale', 'trade'].includes(mode)) return json({ error: 'Ungültiges Angebot.' }, 400, corsHeaders);
+  if (!item || mode !== 'trade') return json({ error: 'Nur Item-Tausch-Angebote werden eingestellt.' }, 400, corsHeaders);
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) return json({ error: 'Die Anzahl muss zwischen 1 und 100 liegen.' }, 400, corsHeaders);
   if (mode === 'trade' && (!wanted || quantity !== 1 || wanted.id === item.id)) return json({ error: 'Ein Tausch benötigt zwei unterschiedliche Items und genau 1 Stück.' }, 400, corsHeaders);
   if (await inventoryQuantity(env, user.username, item.id) < quantity) return json({ error: 'Du besitzt nicht genug von diesem Item.' }, 400, corsHeaders);
   if (!(await removeInventory(env, user.username, item.id, quantity))) return json({ error: 'Item konnte nicht reserviert werden.' }, 409, corsHeaders);
-  const price = mode === 'sale' ? NIGHTCOIN_VALUE[item.rarity] : 0;
-  await env.DB.prepare('INSERT INTO market_listings (seller, item_id, quantity, mode, wanted_item_id, price) VALUES (?, ?, ?, ?, ?, ?)').bind(user.username, item.id, quantity, mode, wanted?.id || null, price).run();
+  await env.DB.prepare('INSERT INTO market_listings (seller, item_id, quantity, mode, wanted_item_id, price) VALUES (?, ?, ?, ?, ?, 0)').bind(user.username, item.id, quantity, mode, wanted?.id || null).run();
   return json({ success: true }, 201, corsHeaders);
+}
+
+async function handleMarketSell(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const body = await readMarketBody(request);
+  const item = cosmeticById(String(body.item_id || ''));
+  const quantity = Number(body.quantity);
+  if (!item || !Number.isInteger(quantity) || quantity < 1 || quantity > 100) return json({ error: 'Ungültiger Verkauf.' }, 400, corsHeaders);
+  if (!(await removeInventory(env, user.username, item.id, quantity))) return json({ error: 'Du besitzt nicht genug von diesem Item.' }, 400, corsHeaders);
+  const earned = quantity * (NIGHTCOIN_VALUE[item.rarity] || 0);
+  await env.DB.prepare('UPDATE users SET nightcoins = nightcoins + ? WHERE username = ?').bind(earned, user.username).run();
+  const coins = (await env.DB.prepare('SELECT nightcoins FROM users WHERE username = ?').bind(user.username).first()).nightcoins;
+  return json({ success: true, earned, nightcoins: Number(coins) || 0 }, 200, corsHeaders);
 }
 
 async function handleMarketBuy(request, env, corsHeaders) {

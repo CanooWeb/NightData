@@ -1126,10 +1126,10 @@
           <h3>Angebot erstellen</h3>
           <div class="market-form">
             <div class="row"><label for="market-item">Dein Item</label><select id="market-item"></select></div>
-            <div class="row"><label for="market-mode">Art</label><select id="market-mode" onchange="toggleMarketWanted()"><option value="sale">Für Nightcoins verkaufen</option><option value="trade">Gegen Item tauschen</option></select></div>
+            <div class="row"><label for="market-mode">Art</label><select id="market-mode" onchange="toggleMarketWanted()"><option value="sale">Sofort für Nightcoins verkaufen</option><option value="trade">Gegen Item tauschen</option></select></div>
             <div class="row"><label for="market-quantity">Anzahl</label><input type="number" id="market-quantity" value="1" min="1" max="100"></div>
             <div class="row hidden" id="market-wanted-wrap"><label for="market-wanted">Gesuchtes Item</label><select id="market-wanted"></select></div>
-            <button class="btn ok market-submit" onclick="createMarketListing()">Angebot einstellen</button>
+            <button class="btn ok market-submit" id="marketSubmit" onclick="createMarketListing()">Sofort verkaufen</button>
           </div>
           <div id="market-msg" class="message"></div>
           <div class="section-divider"></div>
@@ -1757,6 +1757,7 @@
       const trade = document.getElementById('market-mode').value === 'trade';
       document.getElementById('market-wanted-wrap').classList.toggle('hidden', !trade);
       document.getElementById('market-quantity').disabled = trade;
+      document.getElementById('marketSubmit').textContent = trade ? 'Tauschangebot einstellen' : 'Sofort verkaufen';
       if (trade) document.getElementById('market-quantity').value = 1;
     }
 
@@ -1796,8 +1797,9 @@
 
     async function createMarketListing() {
       const mode = document.getElementById('market-mode').value;
-      const data = await api('/api/market/list', { item_id: document.getElementById('market-item').value, mode, quantity: Number(document.getElementById('market-quantity').value), wanted_item_id: document.getElementById('market-wanted').value }, getToken());
-      showMessage('market-msg', data.success ? 'Angebot eingestellt.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      const body = { item_id: document.getElementById('market-item').value, quantity: Number(document.getElementById('market-quantity').value), wanted_item_id: document.getElementById('market-wanted').value };
+      const data = await api(mode === 'trade' ? '/api/market/list' : '/api/market/sell', mode === 'trade' ? { ...body, mode } : body, getToken());
+      showMessage('market-msg', data.success ? (mode === 'trade' ? 'Tauschangebot eingestellt.' : data.earned + ' Nightcoins erhalten.') : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
       if (data.success) loadMarket();
     }
 
