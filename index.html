@@ -301,7 +301,12 @@
     .t-status.closed { color: #ff8f80; border-color: rgba(255,77,109,0.5); }
     .ticket .t-name { font-family: 'Orbitron',sans-serif; font-weight: 700; font-size: 14px; color: #e3c9ff; letter-spacing: 1px; margin-bottom: 4px; word-break: break-word; }
     .ticket .t-id { font-family: 'Share Tech Mono',monospace; font-size: 12px; color: #7ae0e0; margin-bottom: 8px; word-break: break-all; }
-    .ticket .t-info { font-size: 13px; color: #b9a8d8; line-height: 1.5; white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; }
+    .ticket .t-info-wrap { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .42s cubic-bezier(.2,.8,.2,1), opacity .28s ease, margin .42s ease; margin-bottom: 10px; }
+    .ticket .t-info-wrap.collapsed { grid-template-rows: 0fr; opacity: 0; margin-bottom: 0; }
+    .ticket .t-info-inner { min-height: 0; overflow: hidden; }
+    .ticket .t-info { font-size: 13px; color: #b9a8d8; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .ticket .t-info-toggle { margin: 0 0 10px; padding: 4px 9px; color: #7ae0e0; background: rgba(122,224,224,0.06); border: 1px solid rgba(122,224,224,0.35); border-radius: 6px; font: 10px 'Share Tech Mono',monospace; letter-spacing: 1px; cursor: pointer; transition: background .25s, box-shadow .25s; }
+    .ticket .t-info-toggle:hover { background: rgba(122,224,224,0.14); box-shadow: 0 0 12px rgba(122,224,224,0.2); }
     .ticket .t-actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .ticket .t-time { font-family: 'Share Tech Mono',monospace; font-size: 10px; color: #4b3d66; }
 
@@ -2327,10 +2332,18 @@
         '<span class="t-status ' + statusCls + '">' + statusTxt + '</span></div>' +
         '<div class="t-name">' + escapeHtml(t.discord_name) + '</div>' +
         (t.discord_id ? '<div class="t-id">ID: ' + escapeHtml(t.discord_id) + '</div>' : '') +
-        (t.info ? '<div class="t-info">' + escapeHtml(t.info) + '</div>' : '') +
+         (t.info ? '<button type="button" class="t-info-toggle" aria-expanded="true" onclick="toggleTicketInfo(' + t.id + ', this)">Einklappen ▲</button><div class="t-info-wrap" id="t-info-' + t.id + '"><div class="t-info-inner"><div class="t-info">' + escapeHtml(t.info) + '</div></div></div>' : '') +
         '<div class="t-time">' + escapeHtml(fmtTime(t.created_at)) + '</div>' +
         actions +
-        '</div>';
+         '</div>';
+    }
+
+    function toggleTicketInfo(id, button) {
+      const info = document.getElementById('t-info-' + id);
+      if (!info) return;
+      const collapsed = info.classList.toggle('collapsed');
+      button.setAttribute('aria-expanded', String(!collapsed));
+      button.textContent = collapsed ? 'Details anzeigen ▼' : 'Einklappen ▲';
     }
 
     function applyConfig(config) {
