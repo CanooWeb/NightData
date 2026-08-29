@@ -949,6 +949,7 @@
             <div class="stat"><div class="n">—</div><div class="l">Sicherheits-Events</div></div>
             <div class="stat"><div class="n">—</div><div class="l">Aktive Sessions</div></div>
           </div>
+          <div data-admin style="margin-top:22px;"><button class="btn danger" onclick="adminClearChat()">Alle Livechat-Nachrichten löschen</button></div>
         </div>
 
         <div class="adm-tab" id="adm-users" data-found>
@@ -1842,6 +1843,14 @@
       const data = await api('/api/admin/chat/unmute', { author: username }, token);
       if (!data.success) showChatTip(data.error || 'Fehler.');
       refreshChat();
+    }
+
+    async function adminClearChat() {
+      if (!confirm('Alle Livechat-Nachrichten wirklich löschen?')) return;
+      const data = await api('/api/admin/chat/clear', {}, getToken());
+      if (!data.success) { alert(data.error || 'Fehler beim Leeren des Chats.'); return; }
+      chatLastId = 0;
+      document.getElementById('chatMsgs').innerHTML = '<div class="empty">Noch keine Nachrichten – schreib die erste!</div>';
     }
 
     let dmTimer = null;
@@ -2781,6 +2790,7 @@
       document.querySelectorAll('[data-found]').forEach(function (t) { t.classList.toggle('hidden', isModerator); });
       const isFounder = getStoredUser().role === 'founder';
       document.querySelectorAll('[data-founder]').forEach(function (t) { t.classList.toggle('hidden', !isFounder); });
+      document.querySelectorAll('[data-admin]').forEach(function (t) { t.classList.toggle('hidden', isModerator); });
       if (isModerator) {
         switchAdmTab('adm-posts');
       } else {

@@ -110,6 +110,9 @@ export default {
       if (url.pathname === '/api/admin/chat/unmute' && request.method === 'POST') {
         return await handleAdminChatUnmute(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/chat/clear' && request.method === 'POST') {
+        return await handleAdminChatClear(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/friends' && request.method === 'GET') {
         return await handleFriendsGet(request, env, corsHeaders);
       }
@@ -807,6 +810,13 @@ async function handleAdminChatUnmute(request, env, corsHeaders) {
   if (!author) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
 
   await env.DB.prepare('DELETE FROM mutes WHERE username = ?').bind(author).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleAdminChatClear(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  await env.DB.prepare('DELETE FROM chat_messages').run();
   return json({ success: true }, 200, corsHeaders);
 }
 
