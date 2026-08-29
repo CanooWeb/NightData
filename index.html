@@ -813,6 +813,7 @@
     let maxImageMb = 10;
     let roleColorMap = {
       founder: '#7ae0e0',
+      admin: '#ff5252',
       moderator: '#ffd166',
       member: '#9a6fd8'
     };
@@ -897,7 +898,7 @@
 
       const tickets = feed.tickets || [];
       const meRole = getStoredUser().role;
-      const isStaff = meRole === 'founder' || meRole === 'moderator';
+      const isStaff = meRole === 'founder' || meRole === 'admin' || meRole === 'moderator';
       document.getElementById('ticketList').innerHTML = tickets.length
         ? '<div class="ticketgrid">' + tickets.map(t => ticketHtml(t, isStaff)).join('') + '</div>'
         : '<div class="empty">Keine Tickets vorhanden.</div>';
@@ -920,7 +921,7 @@
       document.getElementById('main').classList.add('active');
       document.getElementById('floatui').classList.remove('hidden');
       document.getElementById('topUsername').textContent = escapeHtml(user.username).toUpperCase();
-      const isStaff = user.role === 'founder' || user.role === 'moderator';
+      const isStaff = user.role === 'founder' || user.role === 'admin' || user.role === 'moderator';
       document.getElementById('btnAdmin').classList.toggle('show', isStaff);
       applyBadgeColor(user);
       closeAdmin();
@@ -1104,9 +1105,11 @@
       if (!data.users) return;
       const me = getStoredUser();
       const roles = rolesData.roles || [];
+      const isActor = me ? me.role : 'member';
       const rows = data.users.map(u => {
         const self = me && me.id === u.id;
-        const options = roles.map(r => {
+        const options = roles.filter(function (r) { return isActor !== 'admin' || r.name !== 'founder'; })
+          .map(r => {
           const color = r.color || '#9a6fd8';
           const label = r.name.charAt(0).toUpperCase() + r.name.slice(1);
           return '<option value="' + escapeHtml(r.name) + '"' + (r.name === u.role ? ' selected' : '') + ' style="color:' + escapeHtml(color) + '">' + escapeHtml(label) + '</option>';

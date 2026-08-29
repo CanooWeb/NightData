@@ -191,6 +191,7 @@ async function ensureSchema(env) {
   `).run();
   const seedRoles = [
     ['founder', '#7ae0e0', 1],
+    ['admin', '#ff5252', 1],
     ['moderator', '#ffd166', 1],
     ['member', '#9a6fd8', 1],
   ];
@@ -243,9 +244,14 @@ async function isFounder(request, env) {
   return user && user.role === 'founder' ? user : null;
 }
 
+async function isAdmin(request, env) {
+  const user = await getAuthUser(request, env);
+  return user && (user.role === 'founder' || user.role === 'admin') ? user : null;
+}
+
 async function isStaff(request, env) {
   const user = await getAuthUser(request, env);
-  return user && (user.role === 'founder' || user.role === 'moderator') ? user : null;
+  return user && ['founder', 'admin', 'moderator'].includes(user.role) ? user : null;
 }
 
 async function handleRegister(request, env, corsHeaders, settings) {
@@ -403,8 +409,8 @@ async function handleCreatePost(request, env, corsHeaders, settings) {
     return json({ error: 'Einsendungen sind derzeit deaktiviert.' }, 403, corsHeaders);
   }
 
-  if ((kind === 'announcement' || kind === 'highlight') && user.role !== 'founder') {
-    return json({ error: 'Nur der Founder/Admin darf das erstellen.' }, 403, corsHeaders);
+  if ((kind === 'announcement' || kind === 'highlight') && user.role !== 'founder' && user.role !== 'admin') {
+    return json({ error: 'Nur Founder/Admin dürfen das erstellen.' }, 403, corsHeaders);
   }
 
   let expireSql = 'NULL';
@@ -526,8 +532,8 @@ async function handleAdminTicketDelete(request, env, corsHeaders) {
 }
 
 async function handleAdminOverview(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const userCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first()).n;
   const announcements = (await env.DB.prepare("SELECT COUNT(*) AS n FROM posts WHERE kind = 'announcement'").first()).n;
@@ -541,8 +547,8 @@ async function handleAdminOverview(request, env, corsHeaders) {
 }
 
 async function handleAdminUsers(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const users = (await env.DB.prepare(
     'SELECT id, username, role, banned, created_at FROM users ORDER BY id' 
@@ -552,8 +558,8 @@ async function handleAdminUsers(request, env, corsHeaders) {
 }
 
 async function handleAdminUserRole(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -565,8 +571,12 @@ async function handleAdminUserRole(request, env, corsHeaders) {
 
   const target = await env.DB.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first();
   if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
-  if (target.id === founder.id && role !== 'founder') {
-    return json({ error: 'Du kannst deine eigene Rolle nicht ändern.' }, 400, corsHeaders);
+  if (target.id === admin.id) return json({ error: 'Du kannst deine eigene Rolle nicht ändern.' }, 400, corsHeaders);
+  if (target.role === 'founder' && admin.role !== 'founder') {
+    return json({ error: 'Founder können nur vom Founder selbst verwaltet werden.' }, 403, corsHeaders);
+  }
+  if (role === 'founder' && admin.role !== 'founder') {
+    return json({ error: 'Nur der Founder kann die Founder-Rolle vergeben.' }, 403, corsHeaders);
   }
 
   await env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
@@ -574,8 +584,8 @@ async function handleAdminUserRole(request, env, corsHeaders) {
 }
 
 async function handleAdminUserBan(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -583,6 +593,13 @@ async function handleAdminUserBan(request, env, corsHeaders) {
   const banned = body.banned ? 1 : 0;
 
   if (!id) return json({ error: 'Ungültige ID.' }, 400, corsHeaders);
+
+  const target = await env.DB.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  if (target.id === admin.id) return json({ error: 'Du kannst dich nicht selbst sperren.' }, 400, corsHeaders);
+  if (target.role === 'founder' && admin.role !== 'founder') {
+    return json({ error: 'Founder können nur vom Founder selbst moderiert werden.' }, 403, corsHeaders);
+  }
 
   await env.DB.prepare('UPDATE users SET banned = ? WHERE id = ?').bind(banned, id).run();
   if (banned) {
@@ -592,8 +609,8 @@ async function handleAdminUserBan(request, env, corsHeaders) {
 }
 
 async function handleAdminUserDelete(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -602,7 +619,10 @@ async function handleAdminUserDelete(request, env, corsHeaders) {
 
   const user = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(id).first();
   if (!user) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
-  if (user.id === founder.id) return json({ error: 'Du kannst dich nicht selbst löschen.' }, 400, corsHeaders);
+  if (user.id === admin.id) return json({ error: 'Du kannst dich nicht selbst löschen.' }, 400, corsHeaders);
+  if (user.role === 'founder' && admin.role !== 'founder') {
+    return json({ error: 'Founder können nur vom Founder selbst gelöscht werden.' }, 403, corsHeaders);
+  }
 
   await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
   await env.DB.prepare('DELETE FROM posts WHERE author = ?').bind(user.username).run();
@@ -624,8 +644,8 @@ async function handleAdminPosts(request, env, corsHeaders) {
 }
 
 async function handleAdminPostUpdate(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -668,24 +688,24 @@ async function handleAdminSecurity(request, env, corsHeaders) {
 }
 
 async function handleAdminSecurityClear(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   await env.DB.prepare('DELETE FROM security_logs').run();
   return json({ success: true }, 200, corsHeaders);
 }
 
 async function handleAdminSettingsGet(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const settings = await getSettings(env);
   return json({ settings }, 200, corsHeaders);
 }
 
 async function handleAdminSettingsSet(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -737,16 +757,16 @@ async function cleanupExpiredAnnouncements(env) {
 }
 
 async function handleAdminRolesList(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const roles = (await env.DB.prepare('SELECT id, name, color, builtin FROM custom_roles ORDER BY id').all()).results;
   return json({ roles }, 200, corsHeaders);
 }
 
 async function handleAdminRoleCreate(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -763,8 +783,8 @@ async function handleAdminRoleCreate(request, env, corsHeaders) {
 }
 
 async function handleAdminRoleUpdate(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -802,8 +822,8 @@ async function handleAdminRoleUpdate(request, env, corsHeaders) {
 }
 
 async function handleAdminRoleDelete(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
