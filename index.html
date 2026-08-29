@@ -463,6 +463,18 @@
       position: fixed; left: 18px; top: 50%; transform: translateY(-50%); z-index: 8;
       pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5);
     }
+    .floatui-market { position: fixed; left: 18px; top: calc(50% + 78px); z-index: 8; pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
+    .marketoverlay { position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto; padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px); }
+    .marketoverlay.show { display: block; }
+    .marketoverlay .shell { max-width: 900px; margin: 0 auto; }
+    .market-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: end; margin-bottom: 22px; }
+    .market-form .market-submit { grid-column: 1 / -1; }
+    .market-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .market-item { border: 1px solid rgba(139,63,240,0.35); border-radius: 12px; padding: 13px; background: rgba(10,11,16,0.55); }
+    .market-item .market-kind { color: #7ae0e0; font: 10px 'Share Tech Mono',monospace; letter-spacing: 1px; text-transform: uppercase; }
+    .market-item .market-name { margin: 7px 0; font: 700 14px 'Orbitron',sans-serif; }
+    .market-item .market-meta { color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; margin-bottom: 10px; }
+    @media (max-width: 700px) { .floatui-market { left: 10px; top: 87px; } .market-form { grid-template-columns: 1fr; } .market-form .market-submit { grid-column: auto; } }
     .floatui-cases.case-button {
       width: 92px; min-height: 72px; padding: 7px 9px; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 3px; border-radius: 14px;
@@ -777,6 +789,7 @@
       <span class="case-button-label">KISTE</span>
       <span class="case-button-timer" id="caseButtonTimer">Lade...</span>
     </button>
+    <button class="btn mini floatui-market" id="btnMarket" onclick="toggleMarketOverlay()" title="Items gegen Items oder Nightcoins handeln">Trade Market</button>
     <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
   </div>
 
@@ -1104,6 +1117,29 @@
     </div>
   </div>
 
+  <div class="marketoverlay" id="marketOverlay">
+    <div class="shell">
+      <div class="admin-head"><div class="brand">TRADE MARKET</div><button class="btn danger" onclick="toggleMarketOverlay()">Schließen</button></div>
+      <div class="panel">
+        <div class="panel-head"><h2>Items handeln</h2><span class="live" id="marketCoins">0 NIGHTCOINS</span></div>
+        <div class="panel-body">
+          <h3>Angebot erstellen</h3>
+          <div class="market-form">
+            <div class="row"><label for="market-item">Dein Item</label><select id="market-item"></select></div>
+            <div class="row"><label for="market-mode">Art</label><select id="market-mode" onchange="toggleMarketWanted()"><option value="sale">Für Nightcoins verkaufen</option><option value="trade">Gegen Item tauschen</option></select></div>
+            <div class="row"><label for="market-quantity">Anzahl</label><input type="number" id="market-quantity" value="1" min="1" max="100"></div>
+            <div class="row hidden" id="market-wanted-wrap"><label for="market-wanted">Gesuchtes Item</label><select id="market-wanted"></select></div>
+            <button class="btn ok market-submit" onclick="createMarketListing()">Angebot einstellen</button>
+          </div>
+          <div id="market-msg" class="message"></div>
+          <div class="section-divider"></div>
+          <h3>Aktive Angebote</h3>
+          <div class="market-list" id="marketListings"><div class="empty">Lade...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="userpopup" id="userPopup">
     <div class="shell">
       <div class="card" id="userPopupCard">
@@ -1211,6 +1247,7 @@
           document.getElementById('main').classList.remove('blur');
           document.getElementById('profileOverlay').classList.remove('show');
           document.getElementById('dmOverlay').classList.remove('show');
+          document.getElementById('marketOverlay').classList.remove('show');
           closeDmOverlay();
           closeUserPopup();
         }
@@ -1709,6 +1746,64 @@
     function stopCaseCd() {
       if (caseCdTimer) { clearInterval(caseCdTimer); caseCdTimer = null; }
     }
+
+    function toggleMarketOverlay() {
+      const overlay = document.getElementById('marketOverlay');
+      overlay.classList.toggle('show');
+      if (overlay.classList.contains('show')) loadMarket();
+    }
+
+    function toggleMarketWanted() {
+      const trade = document.getElementById('market-mode').value === 'trade';
+      document.getElementById('market-wanted-wrap').classList.toggle('hidden', !trade);
+      document.getElementById('market-quantity').disabled = trade;
+      if (trade) document.getElementById('market-quantity').value = 1;
+    }
+
+    function marketItem(id) { return COSMETICS.find(function (i) { return i.id === id; }); }
+
+    async function loadMarket() {
+      const data = await apiGet('/api/market', getToken());
+      if (!data || data.error) return;
+      document.getElementById('marketCoins').textContent = (Number(data.nightcoins) || 0) + ' NIGHTCOINS';
+      const owned = data.inventory || [];
+      document.getElementById('market-item').innerHTML = owned.length
+        ? owned.map(function (r) { const item = marketItem(r.item_id); return item ? '<option value="' + item.id + '">' + escapeHtml(item.label) + ' (x' + r.quantity + ')</option>' : ''; }).join('')
+        : '<option value="">Keine Items vorhanden</option>';
+      document.getElementById('market-wanted').innerHTML = COSMETICS.map(function (item) { return '<option value="' + item.id + '">' + escapeHtml(item.label) + '</option>'; }).join('');
+      renderMarketListings(data.listings || []);
+    }
+
+    function renderMarketListings(listings) {
+      const me = getStoredUser().username;
+      const box = document.getElementById('marketListings');
+      if (!listings.length) { box.innerHTML = '<div class="empty">Noch keine Angebote.</div>'; return; }
+      box.innerHTML = listings.map(function (listing) {
+        const item = marketItem(listing.item_id);
+        const wanted = marketItem(listing.wanted_item_id);
+        if (!item) return '';
+        const own = listing.seller === me;
+        const action = own
+          ? '<button class="btn mini danger" onclick="marketCancel(' + listing.id + ')">Zurücknehmen</button>'
+          : listing.mode === 'trade'
+            ? '<button class="btn mini ok" onclick="marketTrade(' + listing.id + ')">Tauschen</button>'
+            : '<button class="btn mini ok" onclick="marketBuy(' + listing.id + ')">Kaufen</button>';
+        return '<div class="market-item"><div class="market-kind">' + (listing.mode === 'trade' ? 'ITEM-TAUSCH' : 'VERKAUF') + '</div>' +
+          '<div class="market-name" style="color:' + item.v + '">' + escapeHtml(item.label) + ' x' + listing.quantity + '</div>' +
+          '<div class="market-meta">von ' + escapeHtml(listing.seller) + (listing.mode === 'trade' ? ' · gesucht: ' + escapeHtml(wanted ? wanted.label : listing.wanted_item_id) : ' · ' + listing.price + ' Nightcoin') + '</div>' + action + '</div>';
+      }).join('');
+    }
+
+    async function createMarketListing() {
+      const mode = document.getElementById('market-mode').value;
+      const data = await api('/api/market/list', { item_id: document.getElementById('market-item').value, mode, quantity: Number(document.getElementById('market-quantity').value), wanted_item_id: document.getElementById('market-wanted').value }, getToken());
+      showMessage('market-msg', data.success ? 'Angebot eingestellt.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
+      if (data.success) loadMarket();
+    }
+
+    async function marketBuy(id) { const data = await api('/api/market/buy', { id }, getToken()); showMessage('market-msg', data.success ? 'Item gekauft.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error'); if (data.success) loadMarket(); }
+    async function marketTrade(id) { const data = await api('/api/market/trade', { id }, getToken()); showMessage('market-msg', data.success ? 'Item getauscht.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error'); if (data.success) loadMarket(); }
+    async function marketCancel(id) { const data = await api('/api/market/cancel', { id }, getToken()); showMessage('market-msg', data.success ? 'Angebot zurückgenommen.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error'); if (data.success) loadMarket(); }
 
     function renderCaseSlots() {
       document.getElementById('slotGlow').innerHTML = slotToolHtml('glow', 'Glow-Effekt');
@@ -2435,6 +2530,7 @@
       closeProfile();
       closeDmOverlay();
       closeUserPopup();
+      document.getElementById('marketOverlay').classList.remove('show');
       loadFeed();
       startChat();
       document.getElementById('btnFriends').classList.remove('hidden');

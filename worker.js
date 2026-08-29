@@ -24,6 +24,7 @@ const COSMETIC_ITEMS = [
 
 const RARITY_WEIGHT = { common: 35, rare: 35, epic: 22, legendary: 8 };
 const RARITY_LABEL = { common: 'Gewöhnlich', rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
+const NIGHTCOIN_VALUE = { common: 1, rare: 2, epic: 3, legendary: 6 };
 
 function cosmeticById(id) {
   return COSMETIC_ITEMS.find(i => i.id === id) || null;
@@ -171,6 +172,21 @@ export default {
       }
       if (url.pathname === '/api/inventory/unequip' && request.method === 'POST') {
         return await handleInventoryUnequip(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/market' && request.method === 'GET') {
+        return await handleMarketGet(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/market/list' && request.method === 'POST') {
+        return await handleMarketList(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/market/buy' && request.method === 'POST') {
+        return await handleMarketBuy(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/market/trade' && request.method === 'POST') {
+        return await handleMarketTrade(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/market/cancel' && request.method === 'POST') {
+        return await handleMarketCancel(request, env, corsHeaders);
       }
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
@@ -396,6 +412,20 @@ async function ensureSchema(env) {
   `).run();
   await env.DB.prepare('ALTER TABLE users ADD COLUMN glow_item TEXT').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN color_item TEXT').run().catch(() => {});
+  await env.DB.prepare('ALTER TABLE users ADD COLUMN nightcoins INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS market_listings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seller TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      mode TEXT NOT NULL,
+      wanted_item_id TEXT,
+      price INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_fr_to ON friend_requests (to_user)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_dm_recip ON dm_messages (recipient, read)').run();
   const seedRoles = [
@@ -1150,6 +1180,7 @@ async function handleAdminChestGrantAll(request, env, corsHeaders) {
 }
 
 async function clearChestData(env, username) {
+  await env.DB.prepare("DELETE FROM market_listings WHERE seller = ? AND status = 'active'").bind(username).run();
   await env.DB.prepare('DELETE FROM inventory WHERE username = ?').bind(username).run();
   await env.DB.prepare('DELETE FROM chest_opens WHERE username = ?').bind(username).run();
   await env.DB.prepare('DELETE FROM chest_credits WHERE username = ?').bind(username).run();
@@ -1182,7 +1213,107 @@ async function handleAdminChestClearAll(request, env, corsHeaders) {
   await env.DB.prepare('DELETE FROM inventory').run();
   await env.DB.prepare('DELETE FROM chest_opens').run();
   await env.DB.prepare('DELETE FROM chest_credits').run();
+  await env.DB.prepare('DELETE FROM market_listings').run();
+  await env.DB.prepare('UPDATE users SET nightcoins = 0').run();
   await env.DB.prepare('UPDATE users SET glow_item = NULL, color_item = NULL').run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function inventoryQuantity(env, username, itemId) {
+  const row = await env.DB.prepare('SELECT quantity FROM inventory WHERE username = ? AND item_id = ?').bind(username, itemId).first();
+  return Math.max(Number(row?.quantity) || 0, 0);
+}
+
+async function addInventory(env, username, itemId, amount) {
+  await env.DB.prepare(
+    'INSERT INTO inventory (username, item_id, quantity) VALUES (?, ?, ?) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + excluded.quantity'
+  ).bind(username, itemId, amount).run();
+}
+
+async function removeInventory(env, username, itemId, amount) {
+  const quantity = await inventoryQuantity(env, username, itemId);
+  if (quantity < amount) return false;
+  if (quantity === amount) await env.DB.prepare('DELETE FROM inventory WHERE username = ? AND item_id = ?').bind(username, itemId).run();
+  else await env.DB.prepare('UPDATE inventory SET quantity = quantity - ? WHERE username = ? AND item_id = ?').bind(amount, username, itemId).run();
+  return true;
+}
+
+async function marketInventory(env, username) {
+  return (await env.DB.prepare('SELECT item_id, quantity FROM inventory WHERE username = ? ORDER BY item_id').bind(username).all()).results;
+}
+
+async function handleMarketGet(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const listings = (await env.DB.prepare(
+    "SELECT id, seller, item_id, quantity, mode, wanted_item_id, price, created_at FROM market_listings WHERE status = 'active' ORDER BY id DESC LIMIT 100"
+  ).all()).results;
+  return json({ nightcoins: Number((await env.DB.prepare('SELECT nightcoins FROM users WHERE id = ?').bind(user.id).first())?.nightcoins) || 0, inventory: await marketInventory(env, user.username), listings }, 200, corsHeaders);
+}
+
+async function readMarketBody(request) {
+  try { return await request.json(); } catch (err) { return {}; }
+}
+
+async function handleMarketList(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const body = await readMarketBody(request);
+  const item = cosmeticById(String(body.item_id || ''));
+  const mode = String(body.mode || 'sale');
+  const wanted = cosmeticById(String(body.wanted_item_id || ''));
+  const quantity = Number(body.quantity);
+  if (!item || !['sale', 'trade'].includes(mode)) return json({ error: 'Ungültiges Angebot.' }, 400, corsHeaders);
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) return json({ error: 'Die Anzahl muss zwischen 1 und 100 liegen.' }, 400, corsHeaders);
+  if (mode === 'trade' && (!wanted || quantity !== 1 || wanted.id === item.id)) return json({ error: 'Ein Tausch benötigt zwei unterschiedliche Items und genau 1 Stück.' }, 400, corsHeaders);
+  if (await inventoryQuantity(env, user.username, item.id) < quantity) return json({ error: 'Du besitzt nicht genug von diesem Item.' }, 400, corsHeaders);
+  if (!(await removeInventory(env, user.username, item.id, quantity))) return json({ error: 'Item konnte nicht reserviert werden.' }, 409, corsHeaders);
+  const price = mode === 'sale' ? NIGHTCOIN_VALUE[item.rarity] : 0;
+  await env.DB.prepare('INSERT INTO market_listings (seller, item_id, quantity, mode, wanted_item_id, price) VALUES (?, ?, ?, ?, ?, ?)').bind(user.username, item.id, quantity, mode, wanted?.id || null, price).run();
+  return json({ success: true }, 201, corsHeaders);
+}
+
+async function handleMarketBuy(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const body = await readMarketBody(request);
+  const id = Number(body.id);
+  const listing = await env.DB.prepare("SELECT * FROM market_listings WHERE id = ? AND status = 'active' AND mode = 'sale'").bind(id).first();
+  if (!listing) return json({ error: 'Angebot nicht gefunden.' }, 404, corsHeaders);
+  if (listing.seller === user.username) return json({ error: 'Du kannst dein eigenes Angebot nicht kaufen.' }, 400, corsHeaders);
+  const buyer = await env.DB.prepare('SELECT nightcoins FROM users WHERE username = ?').bind(user.username).first();
+  if ((Number(buyer?.nightcoins) || 0) < listing.price) return json({ error: 'Nicht genug Nightcoins.' }, 400, corsHeaders);
+  await env.DB.prepare("UPDATE market_listings SET quantity = quantity - 1, status = CASE WHEN quantity <= 1 THEN 'sold' ELSE status END WHERE id = ? AND status = 'active'").bind(id).run();
+  await addInventory(env, user.username, listing.item_id, 1);
+  await env.DB.prepare('UPDATE users SET nightcoins = nightcoins - ? WHERE username = ?').bind(listing.price, user.username).run();
+  await env.DB.prepare('UPDATE users SET nightcoins = nightcoins + ? WHERE username = ?').bind(listing.price, listing.seller).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleMarketTrade(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const body = await readMarketBody(request);
+  const id = Number(body.id);
+  const listing = await env.DB.prepare("SELECT * FROM market_listings WHERE id = ? AND status = 'active' AND mode = 'trade'").bind(id).first();
+  if (!listing) return json({ error: 'Tauschangebot nicht gefunden.' }, 404, corsHeaders);
+  if (listing.seller === user.username) return json({ error: 'Du kannst dein eigenes Angebot nicht tauschen.' }, 400, corsHeaders);
+  if (!(await removeInventory(env, user.username, listing.wanted_item_id, 1))) return json({ error: 'Du besitzt das gewünschte Item nicht.' }, 400, corsHeaders);
+  await addInventory(env, user.username, listing.item_id, 1);
+  await addInventory(env, listing.seller, listing.wanted_item_id, 1);
+  await env.DB.prepare("UPDATE market_listings SET status = 'traded' WHERE id = ? AND status = 'active'").bind(id).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleMarketCancel(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const body = await readMarketBody(request);
+  const id = Number(body.id);
+  const listing = await env.DB.prepare("SELECT * FROM market_listings WHERE id = ? AND seller = ? AND status = 'active'").bind(id, user.username).first();
+  if (!listing) return json({ error: 'Angebot nicht gefunden.' }, 404, corsHeaders);
+  await env.DB.prepare("UPDATE market_listings SET status = 'cancelled' WHERE id = ?").bind(id).run();
+  await addInventory(env, user.username, listing.item_id, listing.quantity);
   return json({ success: true }, 200, corsHeaders);
 }
 
@@ -1524,6 +1655,7 @@ async function handleAdminUserDelete(request, env, corsHeaders) {
   await env.DB.prepare('DELETE FROM inventory WHERE username = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM chest_opens WHERE username = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM chest_credits WHERE username = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM market_listings WHERE seller = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
 
   return json({ success: true }, 200, corsHeaders);
