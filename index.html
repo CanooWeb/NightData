@@ -643,6 +643,8 @@
     .up-msg { margin-top: 10px; }
 
     @media (max-width: 700px) {
+      html, body { width: 100%; min-width: 100%; height: 100%; min-height: 100%; }
+      body { min-height: 100dvh; height: 100dvh; }
       .chatpanel { right: 10px; left: 10px; width: auto; height: 45vh; top: auto; bottom: 12px; }
       .chatmin { right: 10px; bottom: 12px; top: auto; transform: none; }
       .floatui .rankpill, .floatui .floatui-admin, .floatui .floatui-friends, .floatui .floatui-cases, .floatui .floatui-market, .floatui .floatui-logout { display: none !important; }
@@ -652,7 +654,7 @@
       .mobile-menu button { width: 100%; min-height: 42px; text-align: left; }
       body { align-items: flex-start; }
       #loginCard { width: calc(100% - 24px); max-width: 420px; margin: 12px; padding: 28px 20px; }
-      #main { padding: 78px 10px 120px; }
+      #main { width: 100%; height: 100dvh; min-height: 100dvh; padding: 78px 10px 120px; }
       .topbar { align-items: flex-start; padding: 13px 14px; }
       .topbar .brand { font-size: 16px; letter-spacing: 2px; }
       .topbar .op { font-size: 11px; }
@@ -661,7 +663,7 @@
       .panel-head { padding: 12px 14px; }
       .panel-head h2 { font-size: 13px; letter-spacing: 2px; }
       .panel-body { padding: 14px; }
-      .adminoverlay, .profileoverlay, .marketoverlay, .dmoverlay { padding: 12px 10px 70px; }
+      .adminoverlay, .profileoverlay, .marketoverlay, .dmoverlay { width: 100%; height: 100dvh; min-height: 100dvh; padding: 12px 10px 70px; }
       .admin-head { padding: 11px 13px; margin-bottom: 12px; }
       .admin-head .brand { font-size: 14px; letter-spacing: 2px; }
       .adm-tabs { padding: 10px 12px 0; overflow-x: auto; flex-wrap: nowrap; }
