@@ -561,12 +561,7 @@
               </div>
               <div class="form-group">
                 <label for="ann-duration">Gültigkeitsdauer</label>
-                <select id="ann-duration">
-                  <option value="60">30–60 Sekunden</option>
-                  <option value="600">5–10 Minuten</option>
-                  <option value="259200">1–3 Tage</option>
-                  <option value="0">Dauerhaft</option>
-                </select>
+                <input type="text" id="ann-duration" placeholder="z.B. 45s, 10m, 2h, 1d oder '0' = dauerhaft">
               </div>
               <div class="form-group">
                 <label for="ann-file">Bild (optional)</label>
@@ -606,12 +601,7 @@
           </div>
           <div class="row">
             <label for="set-anndur">Standard-Dauer für Ankündigungen</label>
-            <select id="set-anndur">
-              <option value="60">30–60 Sekunden</option>
-              <option value="600">5–10 Minuten</option>
-              <option value="259200">1–3 Tage</option>
-              <option value="0">Dauerhaft</option>
-            </select>
+            <input type="text" id="set-anndur" placeholder="z.B. 45s, 10m, 2h, 1d oder '0' = dauerhaft">
           </div>
           <button type="submit" id="btnSaveSettings" onclick="adminSaveSettings()">Einstellungen speichern</button>
           <div id="adm-settings-msg" class="message"></div>
@@ -732,7 +722,26 @@
     }
 
     const API_BASE = 'https://nightdata-api.nightdata.workers.dev';
-    const ANN_DURATIONS = { '60': '30–60 Sek', '600': '5–10 Min', '259200': '1–3 Tage', '0': 'Dauerhaft' };
+
+    function parseDuration(text) {
+      const s = String(text || '').trim().toLowerCase();
+      if (!s || s === '0' || s === 'dauerhaft' || s === 'permanent' || s === 'unendlich') return 0;
+      const m = s.match(/^(\d+(?:[.,]\d+)?)\s*(s|m|h|d)?$/);
+      if (!m) return null;
+      const val = parseFloat(m[1].replace(',', '.'));
+      const unit = m[2] || 's';
+      const mult = { s: 1, m: 60, h: 3600, d: 86400 };
+      return Math.floor(val * mult[unit]);
+    }
+
+    function formatDuration(seconds) {
+      const n = Number(seconds) || 0;
+      if (!n) return 'dauerhaft';
+      if (n % 86400 === 0) return (n / 86400) + 'd';
+      if (n % 3600 === 0) return (n / 3600) + 'h';
+      if (n % 60 === 0) return (n / 60) + 'm';
+      return n + 's';
+    }
 
     function getToken() { return localStorage.getItem('token'); }
     function getStoredUser() {
@@ -967,7 +976,9 @@
       const body = { kind, title, body: text, fileKey };
       if (kind === 'announcement') {
         const dur = document.getElementById('ann-duration');
-        body.duration = Number(dur && dur.value);
+        const seconds = parseDuration(dur && dur.value);
+        if (seconds === null) { showMessage(msgId, 'Ungültige Dauer. Beispiele: 45s, 10m, 2h, 1d, 0 = dauerhaft.', 'error'); return; }
+        body.duration = seconds;
       }
 
       const data = await api('/api/posts', body, token);
@@ -1148,20 +1159,24 @@
       document.getElementById('set-welcome').value = s.welcome_text || '';
       document.getElementById('set-registration').checked = s.allow_registration === '1';
       document.getElementById('set-maxmb').value = Number(s.max_image_mb) || 10;
-      document.getElementById('set-anndur').value = Object.keys(ANN_DURATIONS).includes(String(s.ann_duration_default)) ? String(s.ann_duration_default) : '60';
+      document.getElementById('set-anndur').value = formatDuration(s.ann_duration_default);
+      const annDur = document.getElementById('ann-duration');
+      if (annDur && !annDur.value.trim()) annDur.value = formatDuration(s.ann_duration_default);
     }
 
     async function adminSaveSettings() {
+      const parsedDur = parseDuration(document.getElementById('set-anndur').value);
       const settings = {
         site_title: document.getElementById('set-title').value.trim() || 'NightData',
         welcome_text: document.getElementById('set-welcome').value.trim(),
         allow_registration: document.getElementById('set-registration').checked ? '1' : '0',
         max_image_mb: String(Number(document.getElementById('set-maxmb').value) || 10),
-        ann_duration_default: String(document.getElementById('set-anndur').value),
+        ann_duration_default: String(parsedDur || 0),
       };
       const data = await api('/api/admin/settings', { settings }, getToken());
       if (data.success) {
         showMessage('adm-settings-msg', 'Einstellungen gespeichert.', 'success');
+        document.getElementById('set-anndur').value = formatDuration(parsedDur || 0);
         loadFeed();
       } else {
         showMessage('adm-settings-msg', data.error || 'Fehler.', 'error');

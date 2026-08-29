@@ -362,8 +362,8 @@ async function handleCreatePost(request, env, corsHeaders, settings) {
   if (!text && !fileKey) {
     return json({ error: 'Bitte Text oder eine Datei hinzufügen.' }, 400, corsHeaders);
   }
-  if (kind === 'announcement' && (duration < 0 || duration > 604800)) {
-    return json({ error: 'Ungültige Dauer.' }, 400, corsHeaders);
+  if (kind === 'announcement' && (duration < 0 || duration > 31536000)) {
+    return json({ error: 'Ungültige Dauer (max. 365 Tage).' }, 400, corsHeaders);
   }
   if (kind === 'highlight' && settings.highlights_enabled !== '1') {
     return json({ error: 'Highlights sind deaktiviert.' }, 403, corsHeaders);
