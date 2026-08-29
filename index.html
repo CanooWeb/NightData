@@ -307,6 +307,11 @@
     .ticket .t-info { font-size: 13px; color: #b9a8d8; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
     .ticket .t-info-toggle { margin: 0 0 10px; padding: 4px 9px; color: #7ae0e0; background: rgba(122,224,224,0.06); border: 1px solid rgba(122,224,224,0.35); border-radius: 6px; font: 10px 'Share Tech Mono',monospace; letter-spacing: 1px; cursor: pointer; transition: background .25s, box-shadow .25s; }
     .ticket .t-info-toggle:hover { background: rgba(122,224,224,0.14); box-shadow: 0 0 12px rgba(122,224,224,0.2); }
+    .ticket-info-collapse { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .5s cubic-bezier(.2,.8,.2,1), opacity .3s ease; }
+    .ticket-info-collapse.collapsed { grid-template-rows: 0fr; opacity: .15; }
+    .ticket-info-collapse > .panel-body { min-height: 0; overflow: hidden; }
+    .section-toggle { padding: 5px 10px; color: #7ae0e0; background: rgba(122,224,224,0.06); border: 1px solid rgba(122,224,224,0.35); border-radius: 6px; font: 10px 'Share Tech Mono',monospace; letter-spacing: 1px; cursor: pointer; transition: background .25s, box-shadow .25s, color .25s; }
+    .section-toggle:hover { color: #fff; background: rgba(122,224,224,0.14); box-shadow: 0 0 12px rgba(122,224,224,0.2); }
     .ticket .t-actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .ticket .t-time { font-family: 'Share Tech Mono',monospace; font-size: 10px; color: #4b3d66; }
 
@@ -793,9 +798,9 @@
       <div class="panel" id="ticketPanel">
         <div class="panel-head">
           <h2>Discord User Information</h2>
-          <span class="live">● LIVE</span>
+          <div style="display:flex;align-items:center;gap:10px;"><span class="live">● LIVE</span><button type="button" class="section-toggle" id="ticketInfoToggle" aria-expanded="true" onclick="toggleUserInformation()">ZUKLAPPEN ▲</button></div>
         </div>
-        <div class="panel-body">
+        <div class="ticket-info-collapse" id="ticketInfoCollapse"><div class="panel-body">
           <div class="ticket-form">
             <div>
               <label for="tk-name">Discord Name <span class="hint">(Pflichtfeld)</span></label>
@@ -815,7 +820,7 @@
             </div>
           </div>
           <div id="ticketList"><div class="empty">Keine Tickets vorhanden.</div></div>
-        </div>
+        </div></div>
       </div>
 
     </div>
@@ -2344,6 +2349,15 @@
       const collapsed = info.classList.toggle('collapsed');
       button.setAttribute('aria-expanded', String(!collapsed));
       button.textContent = collapsed ? 'Details anzeigen ▼' : 'Einklappen ▲';
+    }
+
+    function toggleUserInformation() {
+      const body = document.getElementById('ticketInfoCollapse');
+      const button = document.getElementById('ticketInfoToggle');
+      if (!body || !button) return;
+      const collapsed = body.classList.toggle('collapsed');
+      button.setAttribute('aria-expanded', String(!collapsed));
+      button.textContent = collapsed ? 'ÖFFNEN ▼' : 'ZUKLAPPEN ▲';
     }
 
     function applyConfig(config) {
