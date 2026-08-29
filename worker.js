@@ -1,9 +1,12 @@
+const FOUNDERS = ['Can2201'];
+
 export default {
   async fetch(request, env) {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
     };
 
     if (request.method === 'OPTIONS') {
@@ -23,6 +26,21 @@ export default {
       }
       if (url.pathname === '/api/me' && request.method === 'GET') {
         return await handleMe(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/feed' && request.method === 'GET') {
+        return await handleFeed(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/posts' && request.method === 'POST') {
+        return await handleCreatePost(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/presign' && request.method === 'POST') {
+        return await handlePresign(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/console-alert' && request.method === 'POST') {
+        return await handleConsoleAlert(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/security-logs' && request.method === 'GET') {
+        return await handleSecurityLogs(request, env, corsHeaders);
       }
       if (url.pathname === '/' && request.method === 'GET') {
         return json({ service: 'NightData API', status: 'online' }, 200, corsHeaders);
@@ -55,6 +73,28 @@ async function ensureSchema(env) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      author TEXT NOT NULL,
+      file_key TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS security_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT,
+      ip TEXT,
+      ua TEXT,
+      action TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+  await env.DB.prepare(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`).run().catch(() => {});
   initialized = true;
 }
 
@@ -68,13 +108,25 @@ function json(data, status, corsHeaders) {
   });
 }
 
+async function getAuthUser(request, env) {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
+  if (!session) return null;
+
+  const user = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(session.user_id).first();
+  if (!user) return null;
+
+  return user;
+}
+
 async function handleRegister(request, env, corsHeaders) {
   let body = {};
   try {
     body = await request.json();
-  } catch (err) {
-    /* leerer Body = alle Felder fehlen */
-  }
+  } catch (err) {}
 
   const username = (body.username || '').trim();
   const password = body.password || '';
@@ -94,9 +146,10 @@ async function handleRegister(request, env, corsHeaders) {
     return json({ error: 'Dieser Benutzername ist bereits vergeben.' }, 409, corsHeaders);
   }
 
+  const role = FOUNDERS.includes(username) ? 'founder' : 'member';
   const hash = await hashPassword(password);
-  const result = await env.DB.prepare('INSERT INTO users (username, password) VALUES (?, ?)').bind(username, hash).run();
-  const user = await env.DB.prepare('SELECT id, username, created_at FROM users WHERE id = ?').bind(result.meta.last_row_id).first();
+  const result = await env.DB.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').bind(username, hash, role).run();
+  const user = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(result.meta.last_row_id).first();
 
   return json({ success: true, user }, 201, corsHeaders);
 }
@@ -105,9 +158,7 @@ async function handleLogin(request, env, corsHeaders) {
   let body = {};
   try {
     body = await request.json();
-  } catch (err) {
-    /* leerer Body */
-  }
+  } catch (err) {}
 
   const username = (body.username || '').trim();
   const password = body.password || '';
@@ -127,7 +178,7 @@ async function handleLogin(request, env, corsHeaders) {
   return json({
     success: true,
     token,
-    user: { id: user.id, username: user.username },
+    user: { id: user.id, username: user.username, role: user.role || 'member' },
   }, 200, corsHeaders);
 }
 
@@ -144,12 +195,138 @@ async function handleMe(request, env, corsHeaders) {
     return json({ error: 'Sitzung ungültig oder abgelaufen.' }, 401, corsHeaders);
   }
 
-  const user = await env.DB.prepare('SELECT id, username, created_at FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user) {
     return json({ error: 'Benutzer nicht gefunden.' }, 401, corsHeaders);
   }
 
   return json({ success: true, user }, 200, corsHeaders);
+}
+
+async function handleFeed(request, env, corsHeaders) {
+  const me = await getAuthUser(request, env);
+
+  const announcements = (await env.DB.prepare(
+    "SELECT id, title, body, author, file_key, created_at FROM posts WHERE kind = 'announcement' ORDER BY id DESC LIMIT 10"
+  ).all()).results;
+  const highlights = (await env.DB.prepare(
+    "SELECT id, title, body, author, file_key, created_at FROM posts WHERE kind = 'highlight' ORDER BY id DESC LIMIT 10"
+  ).all()).results;
+  const submissions = (await env.DB.prepare(
+    "SELECT id, title, body, author, file_key, created_at FROM posts WHERE kind = 'submission' ORDER BY id DESC LIMIT 50"
+  ).all()).results;
+
+  return json({ announcements, highlights, submissions, me }, 200, corsHeaders);
+}
+
+async function handleCreatePost(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) {
+    return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  }
+
+  let body = {};
+  try {
+    body = await request.json();
+  } catch (err) {}
+
+  const kind = String(body.kind || '');
+  const title = String(body.title || '').trim();
+  const text = String(body.body || '').trim();
+  const fileKey = typeof body.fileKey === 'string' ? body.fileKey : null;
+
+  if (kind !== 'announcement' && kind !== 'highlight' && kind !== 'submission') {
+    return json({ error: 'Ungültige Beitragsart.' }, 400, corsHeaders);
+  }
+  if (!title) {
+    return json({ error: 'Ein Titel ist erforderlich.' }, 400, corsHeaders);
+  }
+  if (!text && !fileKey) {
+    return json({ error: 'Bitte Text oder eine Datei hinzufügen.' }, 400, corsHeaders);
+  }
+
+  if ((kind === 'announcement' || kind === 'highlight') && user.role !== 'founder') {
+    return json({ error: 'Nur der Founder/Admin darf das erstellen.' }, 403, corsHeaders);
+  }
+
+  const result = await env.DB.prepare(
+    'INSERT INTO posts (kind, title, body, author, file_key) VALUES (?, ?, ?, ?, ?)'
+  ).bind(kind, title, text, user.username, fileKey).run();
+
+  const post = await env.DB.prepare(
+    'SELECT id, kind, title, body, author, file_key, created_at FROM posts WHERE id = ?'
+  ).bind(result.meta.last_row_id).first();
+
+  return json({ success: true, post }, 201, corsHeaders);
+}
+
+async function handlePresign(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) {
+    return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  }
+
+  const cloud = env.CLOUDINARY_CLOUD;
+  const apiKey = env.CLOUDINARY_API_KEY;
+  const apiSecret = env.CLOUDINARY_API_SECRET;
+
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const folder = 'nightdata';
+  const toSign = `folder=${folder}&timestamp=${timestamp}`;
+  const signature = await sha1Hex(toSign + apiSecret);
+
+  return json({
+    success: true,
+    url: `https://api.cloudinary.com/v1_1/${cloud}/image/upload`,
+    fields: { folder, timestamp, signature, api_key: apiKey },
+  }, 200, corsHeaders);
+}
+
+async function handleConsoleAlert(request, env, corsHeaders) {
+  const me = await getAuthUser(request, env);
+  let body = {};
+  try {
+    body = await request.json();
+  } catch (err) {}
+
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-real-ip') || 'unbekannt';
+  const ua = request.headers.get('User-Agent') || '';
+  const action = String(body.action || 'console-zugriff');
+
+  await env.DB.prepare(
+    'INSERT INTO security_logs (username, ip, ua, action) VALUES (?, ?, ?, ?)'
+  ).bind(me ? me.username : 'nicht angemeldet', ip, ua.slice(0, 300), action).run();
+
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleSecurityLogs(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user || user.role !== 'founder') {
+    return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  }
+
+  const logs = (await env.DB.prepare(
+    'SELECT username, ip, action, created_at FROM security_logs ORDER BY id DESC LIMIT 50'
+  ).all()).results;
+
+  return json({ logs }, 200, corsHeaders);
+}
+
+async function sha1Hex(data) {
+  const bytes = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(data));
+  return toHex(bytes);
+}
+
+function contentTypeFor(key) {
+  const ext = (key.match(/\.([a-zA-Z0-9]+)$/) || [])[1];
+  const map = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+    m4v: 'video/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', pdf: 'application/pdf',
+    txt: 'text/plain',
+  };
+  return map[ext] || 'application/octet-stream';
 }
 
 const PBKDF2_ITERATIONS = 100000;
