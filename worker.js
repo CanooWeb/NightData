@@ -817,6 +817,12 @@ function toHex(bytes) {
   return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function sha1Hex(str) {
+  const data = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-1', data);
+  return toHex(new Uint8Array(hash));
+}
+
 function hexToBytes(hex) {
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) {
