@@ -397,6 +397,14 @@
     .cbody { min-width: 0; }
     .cmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .cname { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+    .glow-rainbow, .glow-silver, .glow-gold {
+      background-clip: text; -webkit-background-clip: text; color: transparent !important;
+      text-shadow: none !important; background-size: 200% 100%; animation: glowshift 3s linear infinite;
+    }
+    .glow-rainbow { background-image: linear-gradient(90deg, #ff5252, #ffd166, #7bd389, #4da6ff, #8b3ff0, #ff4d6d, #ff5252); }
+    .glow-silver { background-image: linear-gradient(90deg, #718096, #ffffff, #cbd5e1, #718096); }
+    .glow-gold { background-image: linear-gradient(90deg, #a16207, #fff3a3, #ffd166, #b45309, #fff3a3); }
+    @keyframes glowshift { to { background-position: 200% 0; } }
     .c-role {
       font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 1px;
       padding: 1px 6px; border: 1px solid; border-radius: 999px; opacity: 0.9;
@@ -1270,7 +1278,10 @@
       { id: 'neon_pink',    cat: 'glow',  label: 'Neon Pink',        v: '#ff4d6d', rarity: 'rare' },
       { id: 'neon_gold',    cat: 'glow',  label: 'Neon Gold',        v: '#ffd166', rarity: 'epic' },
       { id: 'neon_violet',  cat: 'glow',  label: 'Neon Violett',     v: '#8b3ff0', rarity: 'epic' },
-      { id: 'polar_white',  cat: 'glow',  label: 'Eis-Weiß',         v: '#e8ecff', rarity: 'legendary' },
+      { id: 'polar_white',  cat: 'glow',  label: 'Eis-Weiß',         v: '#e8ecff', rarity: 'epic' },
+      { id: 'silver_shine', cat: 'glow',  label: 'Silberglanz',      v: '#d8e2f0', rarity: 'epic', effect: 'silver' },
+      { id: 'gold_shine',   cat: 'glow',  label: 'Goldglanz',        v: '#ffd166', rarity: 'epic', effect: 'gold' },
+      { id: 'rainbow_glow', cat: 'glow',  label: 'Rainbow Glow',      v: '#ff4d6d', rarity: 'legendary', effect: 'rainbow' },
       { id: 'theme_violet', cat: 'color', label: 'Violette Kiste',   v: '#8b3ff0', rarity: 'common' },
       { id: 'theme_mint',   cat: 'color', label: 'Minz-Kiste',       v: '#7bd389', rarity: 'common' },
       { id: 'theme_ice',    cat: 'color', label: 'Eisblau-Kiste',    v: '#7ae0e0', rarity: 'rare' },
@@ -1286,6 +1297,19 @@
       try { const it = COSMETICS.find(function (i) { return i.id === id; }); return it ? it.v : null; } catch (e) { return null; }
     }
     function glowColorOf(u) { return cosmeticColorById(u && (u.glow_item || u.glow || u.sender_glow)); }
+    function glowEffectOf(u) {
+      if (!u) return '';
+      const id = u.glow_item || u.glow || u.sender_glow;
+      const item = COSMETICS.find(function (i) { return i.id === id; });
+      return item && item.effect ? item.effect : '';
+    }
+    function glowTextCss(u, color) {
+      const effect = glowEffectOf(u);
+      if (effect === 'rainbow') return 'background-image:linear-gradient(90deg,#ff5252,#ffd166,#7bd389,#4da6ff,#8b3ff0,#ff4d6d);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:none;background-size:200% 100%;animation:glowshift 3s linear infinite;';
+      if (effect === 'silver') return 'background-image:linear-gradient(90deg,#718096,#fff,#cbd5e1,#718096);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:none;background-size:200% 100%;animation:glowshift 3s linear infinite;';
+      if (effect === 'gold') return 'background-image:linear-gradient(90deg,#a16207,#fff3a3,#ffd166,#b45309);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:none;background-size:200% 100%;animation:glowshift 3s linear infinite;';
+      return 'color:' + (color || '#9a6fd8') + ';text-shadow:0 0 10px ' + (color || '#9a6fd8') + ';';
+    }
     function themeColorOf(u) { return cosmeticColorById(u && (u.color_item || u.theme || u.sender_theme)); }
 
     function buildRoleColorMap(roles) {
@@ -1313,7 +1337,7 @@
       const glow = glowColorOf(u);
       const uname = document.getElementById('topUsername');
       uname.textContent = escapeHtml((u.alias || u.username || '—')).toUpperCase();
-      uname.style.color = glow || '';
+       uname.style.cssText = glow ? glowTextCss(u, glow) : '';
       const av = document.getElementById('rankAvatar');
       if (u.avatar) {
         av.src = u.avatar;
@@ -1372,7 +1396,7 @@
           '</div>';
       }
       return '<div class="cmsg" data-mid="' + m.id + '">' + av +
-        '<div class="cbody"><div class="cmeta"><span class="cname cname-link" style="color:' + color + '" onclick="openUserPopup(\'' + escapeAttr(m.author) + '\')" title="Profil ansehen">' + escapeHtml(name) + '</span>' +
+         '<div class="cbody"><div class="cmeta"><span class="cname cname-link" style="' + glowTextCss(m, color) + '" onclick="openUserPopup(\'' + escapeAttr(m.author) + '\')" title="Profil ansehen">' + escapeHtml(name) + '</span>' +
         role + mutedTag + '<span class="ctime">' + chatTime(m.created_at) + '</span></div>' +
         '<div class="ctext">' + escapeHtml(m.message || '') + '</div>' +
         actions + '</div></div>';
@@ -1723,7 +1747,7 @@
       box.innerHTML = slots.map(function (s) {
         const item = COSMETICS.find(function (i) { return i.id === s.id; });
         const inner = item
-          ? '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;"><span class="slot-name" style="color:' + item.v + '">' + escapeHtml(item.label) + '</span>' +
+           ? '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;"><span class="slot-name" style="' + (s.cat === 'glow' ? glowTextCss({ glow_item: s.id }, item.v) : 'color:' + item.v + ';') + '">' + escapeHtml(item.label) + '</span>' +
             '<button class="btn mini danger" onclick="unequipProfile(\'' + s.cat + '\')">Abnehmen</button></div>'
           : '<span class="slot-name dim">Leer</span>';
         return '<div class="tool"><div class="slot-label">' + s.label + '</div>' + inner + '</div>';
@@ -1760,7 +1784,7 @@
       const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       const name = u.alias || u.username || '???';
       const badge = u.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
-      return '<div class="f-line"><span class="f-name" style="color:' + color + '">' + escapeHtml(name) + '</span>' + badge + '</div><div class="f-sub">' + escapeHtml(u.username || '') + '</div>';
+       return '<div class="f-line"><span class="f-name" style="' + glowTextCss(u, color) + '">' + escapeHtml(name) + '</span>' + badge + '</div><div class="f-sub">' + escapeHtml(u.username || '') + '</div>';
     }
 
     async function loadDmAll() {
@@ -1830,7 +1854,7 @@
           : '';
         return '<div class="f-row conv" onclick="openDmThread(\'' + escapeAttr(c.username) + '\')">' +
           friendAvatarHtml(c) +
-          '<div class="f-info"><div class="f-line"><span class="f-name" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+           '<div class="f-info"><div class="f-line"><span class="f-name" style="' + glowTextCss(c, color) + '">' + escapeHtml(name) + '</span>' +
           badge + time + '</div>' +
           '<div class="f-prev">' + receipt + escapeHtml(c.last_message || '') + '</div></div></div>';
       }).join('');
@@ -1921,7 +1945,7 @@
       const name = m.sender_alias || m.sender;
       let meta = '';
       if (!isMe) {
-        meta = '<div class="cmeta"><span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+         meta = '<div class="cmeta"><span class="cname" style="' + glowTextCss(m, color) + '">' + escapeHtml(name) + '</span>' +
           (m.sender_role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
       }
       const receipt = isMe
@@ -1954,7 +1978,7 @@
         const color = fGlow || roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
         const name = data.friend.alias || data.friend.username;
         document.getElementById('dmThreadName').innerHTML =
-          friendAvatarHtml(data.friend) + '<span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+           friendAvatarHtml(data.friend) + '<span class="cname" style="' + glowTextCss(data.friend, color) + '">' + escapeHtml(name) + '</span>' +
           (data.friend.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
       }
       if (dmLastId === 0) box.innerHTML = '';
@@ -2155,7 +2179,7 @@
         ? '<img class="up-avatar" src="' + escapeHtml(u.avatar) + '" alt=""' + avRing + '>'
         : '<span class="up-avatar-ph" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(((u.alias || u.username || '?').charAt(0)).toUpperCase()) + '</span>';
       document.getElementById('upName').innerHTML =
-        '<span style="color:' + color + '">' + escapeHtml(u.alias || u.username) + '</span>' +
+         '<span style="' + glowTextCss(u, color) + '">' + escapeHtml(u.alias || u.username) + '</span>' +
         (u.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + ';margin-left:8px;font-size:11px;">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '');
       document.getElementById('upUsername').textContent = '@' + u.username;
       document.getElementById('upBio').textContent = u.bio || '';
