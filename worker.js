@@ -201,6 +201,10 @@ export default {
       if (url.pathname === '/api/voice/signal' && request.method === 'POST') return await handleVoiceSignal(request, env, corsHeaders);
       if (url.pathname === '/api/voice/signals' && request.method === 'GET') return await handleVoiceSignals(request, env, corsHeaders);
       if (url.pathname === '/api/voice/close' && request.method === 'POST') return await handleVoiceClose(request, env, corsHeaders);
+      if (url.pathname === '/api/admin/voice/mute' && request.method === 'POST') return await handleAdminVoiceMute(request, env, corsHeaders);
+      if (url.pathname === '/api/admin/voice/close' && request.method === 'POST') return await handleAdminVoiceClose(request, env, corsHeaders);
+      if (url.pathname === '/api/admin/voice/delete' && request.method === 'POST') return await handleAdminVoiceDelete(request, env, corsHeaders);
+      if (url.pathname === '/api/admin/voice/reset' && request.method === 'POST') return await handleAdminVoiceReset(request, env, corsHeaders);
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
       }
@@ -448,6 +452,7 @@ async function ensureSchema(env) {
     channel_id INTEGER NOT NULL, username TEXT NOT NULL, joined_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (channel_id, username)
   )`).run();
+  await env.DB.prepare('ALTER TABLE voice_members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_signals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, sender TEXT NOT NULL,
     recipient TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now'))
@@ -1366,7 +1371,7 @@ async function handleMarketCancel(request, env, corsHeaders) {
 async function voiceUser(request, env) { return getAuthUser(request, env); }
 async function voiceBody(request) { try { return await request.json(); } catch (e) { return {}; } }
 async function voiceMembers(env, channelId) {
-  return (await env.DB.prepare('SELECT vm.username, vm.joined_at, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM voice_members vm LEFT JOIN users u ON u.username = vm.username WHERE vm.channel_id = ? ORDER BY vm.joined_at').bind(channelId).all()).results;
+  return (await env.DB.prepare('SELECT vm.username, vm.joined_at, vm.muted, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM voice_members vm LEFT JOIN users u ON u.username = vm.username WHERE vm.channel_id = ? ORDER BY vm.joined_at').bind(channelId).all()).results;
 }
 async function handleVoiceGet(request, env, corsHeaders) {
   const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
@@ -1425,6 +1430,36 @@ async function handleVoiceClose(request, env, corsHeaders) {
   const id = Number((await voiceBody(request)).channel_id), c = await env.DB.prepare('SELECT owner FROM voice_channels WHERE id = ?').bind(id).first();
   if (!c || c.owner !== user.username) return json({ error: 'Nur der Ersteller darf den Kanal schließen.' }, 403, corsHeaders);
   await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id = ?').bind(id).run(); await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ?').bind(id).run(); await env.DB.prepare('DELETE FROM voice_channels WHERE id = ?').bind(id).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function voiceStaff(request, env) { return isStaff(request, env); }
+async function handleAdminVoiceMute(request, env, corsHeaders) {
+  const staff = await voiceStaff(request, env); if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const b = await voiceBody(request), channelId = Number(b.channel_id), username = String(b.username || '').trim(), muted = b.muted !== false;
+  if (!channelId || !username) return json({ error: 'Ungültige Anfrage.' }, 400, corsHeaders);
+  const target = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(channelId, username).first();
+  if (!target) return json({ error: 'Teilnehmer nicht gefunden.' }, 404, corsHeaders);
+  await env.DB.prepare('UPDATE voice_members SET muted = ? WHERE channel_id = ? AND username = ?').bind(muted ? 1 : 0, channelId, username).run();
+  return json({ success: true, muted }, 200, corsHeaders);
+}
+async function handleAdminVoiceClose(request, env, corsHeaders) {
+  const staff = await voiceStaff(request, env); if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const id = Number((await voiceBody(request)).channel_id);
+  await env.DB.prepare('UPDATE voice_channels SET is_open = 0 WHERE id = ?').bind(id).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+async function handleAdminVoiceDelete(request, env, corsHeaders) {
+  const staff = await voiceStaff(request, env); if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const id = Number((await voiceBody(request)).channel_id);
+  await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id = ?').bind(id).run();
+  await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ?').bind(id).run();
+  await env.DB.prepare('DELETE FROM voice_channels WHERE id = ?').bind(id).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+async function handleAdminVoiceReset(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env); if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  await env.DB.prepare('DELETE FROM voice_signals').run(); await env.DB.prepare('DELETE FROM voice_members').run(); await env.DB.prepare('DELETE FROM voice_channels').run();
   return json({ success: true }, 200, corsHeaders);
 }
 
