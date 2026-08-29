@@ -154,6 +154,9 @@ export default {
       if (url.pathname === '/api/admin/chest/grant' && request.method === 'POST') {
         return await handleAdminChestGrant(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/chest/grant-all' && request.method === 'POST') {
+        return await handleAdminChestGrantAll(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/inventory/equip' && request.method === 'POST') {
         return await handleInventoryEquip(request, env, corsHeaders);
       }
@@ -1118,6 +1121,18 @@ async function handleAdminChestGrant(request, env, corsHeaders) {
   ).bind(username, amount).run();
   const row = await env.DB.prepare('SELECT credits FROM chest_credits WHERE username = ?').bind(username).first();
   return json({ success: true, username, gifted_chests: Number(row?.credits) || 0 }, 200, corsHeaders);
+}
+
+async function handleAdminChestGrantAll(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  for (const item of COSMETIC_ITEMS) {
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO inventory (username, item_id) VALUES (?, ?)'
+    ).bind(admin.username, item.id).run();
+  }
+  return json({ success: true, count: COSMETIC_ITEMS.length }, 200, corsHeaders);
 }
 
 async function handleInventoryEquip(request, env, corsHeaders) {

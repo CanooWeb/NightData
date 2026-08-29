@@ -307,6 +307,11 @@
 
     .empty { font-family: 'Share Tech Mono',monospace; color: #4b3d66; letter-spacing: 2px; font-size: 13px; }
 
+    body.site-themed { --site-accent: #8b3ff0; --site-accent-soft: rgba(139,63,240,0.35); }
+    body.site-themed .panel, body.site-themed .card { border-color: var(--site-accent-soft); }
+    body.site-themed button:not(.danger), body.site-themed input:focus, body.site-themed textarea:focus { border-color: var(--site-accent); }
+    body.site-themed .brand, body.site-themed h1, body.site-themed h2, body.site-themed h3 { text-shadow: 0 0 12px var(--site-accent-soft); }
+
     .adminonly { display: none; }
     .adminonly.show { display: inline-block; }
 
@@ -841,6 +846,7 @@
               <input type="number" id="chest-gift-amount" value="1" min="1" max="100">
             </div>
             <button class="btn ok" onclick="adminGrantChests()">Kisten verschenken</button>
+            <button class="btn" onclick="adminGrantAllItems()">Alle Inhalte für mich freischalten</button>
             <div id="adm-chest-msg" class="message"></div>
           </div>
         </div>
@@ -1311,6 +1317,17 @@
       return 'color:' + (color || '#9a6fd8') + ';text-shadow:0 0 10px ' + (color || '#9a6fd8') + ';';
     }
     function themeColorOf(u) { return cosmeticColorById(u && (u.color_item || u.theme || u.sender_theme)); }
+    function applyWebsiteTheme(u) {
+      const color = themeColorOf(u);
+      document.body.classList.toggle('site-themed', !!color);
+      if (color) {
+        document.body.style.setProperty('--site-accent', color);
+        document.body.style.setProperty('--site-accent-soft', color + '66');
+      } else {
+        document.body.style.removeProperty('--site-accent');
+        document.body.style.removeProperty('--site-accent-soft');
+      }
+    }
 
     function buildRoleColorMap(roles) {
       if (!roles || !roles.length) return;
@@ -1717,6 +1734,7 @@
       u.glow_item = data.equipped.glow;
       u.color_item = data.equipped.color;
       localStorage.setItem('user', JSON.stringify(u));
+      applyWebsiteTheme(u);
       updateRankPill(u);
       renderCaseSlots();
       renderCaseInv();
@@ -1733,6 +1751,7 @@
       u.glow_item = data.equipped.glow;
       u.color_item = data.equipped.color;
       localStorage.setItem('user', JSON.stringify(u));
+      applyWebsiteTheme(u);
       updateRankPill(u);
       renderCaseSlots();
       renderCaseInv();
@@ -1763,6 +1782,7 @@
       u.glow_item = data.equipped.glow;
       u.color_item = data.equipped.color;
       localStorage.setItem('user', JSON.stringify(u));
+      applyWebsiteTheme(u);
       updateRankPill(u);
       loadProfile();
       showMessage('prof-msg', 'Abgenommen.', 'success');
@@ -2328,6 +2348,7 @@
       const isStaff = user.role === 'founder' || user.role === 'admin' || user.role === 'moderator';
       document.getElementById('btnAdmin').classList.toggle('show', isStaff);
       updateRankPill(user);
+      applyWebsiteTheme(user);
       closeAdmin();
       closeProfile();
       closeDmOverlay();
@@ -2410,6 +2431,7 @@
         prev.removeAttribute('data-current');
       }
       updateRankPill(u);
+      applyWebsiteTheme(u);
       const pGlow = glowColorOf(u);
       const pTheme = themeColorOf(u);
       const pFrame = pGlow || pTheme || '#8b3ff0';
@@ -2669,6 +2691,15 @@
       if (data.success) document.getElementById('chest-gift-user').value = '';
     }
 
+    async function adminGrantAllItems() {
+      if (!confirm('Alle Kisteninhalte inklusive der seltenen Glows freischalten?')) return;
+      const data = await api('/api/admin/chest/grant-all', {}, getToken());
+      showMessage('adm-chest-msg', data.success
+        ? 'Alle ' + data.count + ' Kisteninhalte wurden für dich freigeschaltet.'
+        : (data.error || 'Fehler beim Freischalten.'), data.success ? 'success' : 'error');
+      if (data.success && document.getElementById('caseOverlay').classList.contains('show')) loadCase();
+    }
+
     async function loadAdminRoles() {
       const data = await apiGet('/api/admin/roles', getToken());
       if (!data.roles) return;
@@ -2875,7 +2906,7 @@
       const me = await apiGet('/api/me', token);
       if (me.success && me.user) {
         localStorage.setItem('user', JSON.stringify(me.user));
-        switchToMain({ id: me.user.id, username: me.user.username, role: me.user.role || 'member' });
+         switchToMain(me.user);
       } else {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
