@@ -484,6 +484,13 @@
     .maintenance-card { max-width: 620px; padding: 36px 28px; border: 1px solid rgba(255,209,102,.55); border-radius: 16px; background: rgba(16,18,30,.96); box-shadow: 0 0 35px rgba(255,209,102,.18); }
     .maintenance-card h1 { color: #ffd166; font-family: 'Orbitron',sans-serif; letter-spacing: 2px; margin-bottom: 16px; }
     .maintenance-card p { color: #d9cdf2; white-space: pre-wrap; line-height: 1.6; }
+    .warning-screen { position: fixed; inset: 0; z-index: 110; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(120,12,28,.28); backdrop-filter: blur(7px); }
+    .warning-screen.show { display: flex; }
+    .warning-card { width: min(520px, 100%); padding: 34px 28px 28px; border: 1px solid rgba(255,82,82,.78); border-radius: 18px; background: linear-gradient(145deg, rgba(48,12,24,.98), rgba(20,12,24,.98)); box-shadow: 0 0 45px rgba(255,55,75,.28), 0 18px 70px rgba(0,0,0,.65); text-align: center; }
+    .warning-card h1 { color: #ff7272; font: 900 26px 'Orbitron',sans-serif; letter-spacing: 4px; text-shadow: 0 0 16px rgba(255,82,82,.65); }
+    .warning-card .warning-label { margin: 10px 0 18px; color: #ffb3b3; font: 11px 'Share Tech Mono',monospace; letter-spacing: 2px; }
+    .warning-card .warning-reason { padding: 16px; color: #ffe7e7; border: 1px solid rgba(255,130,130,.3); border-radius: 10px; background: rgba(255,82,82,.09); font-size: 15px; line-height: 1.55; white-space: pre-wrap; }
+    .warning-card .btn { margin-top: 22px; border-color: rgba(255,130,130,.65); color: #ffd4d4; background: rgba(255,82,82,.16); }
     .voiceoverlay .shell { max-width: 820px; margin: 0 auto; }
     .voiceoverlay .admin-head { border-color: rgba(122,224,224,.32); background: linear-gradient(135deg, rgba(122,224,224,.08), rgba(139,63,240,.08)); }
     .voiceoverlay .admin-head .brand { color: #7ae0e0; text-shadow: 0 0 16px rgba(122,224,224,.35); }
@@ -1316,6 +1323,14 @@
     <div class="maintenance-card">
       <h1>WARTUNGSARBEITEN</h1>
       <p id="maintenanceText">Unsere Seite ist aktuell in Wartungsarbeiten.</p>
+    </div>
+  </div>
+  <div class="warning-screen" id="warningScreen" role="alertdialog" aria-modal="true">
+    <div class="warning-card">
+      <h1>VERWARNUNG</h1>
+      <div class="warning-label">DU WURDEST VERWARNT</div>
+      <div class="warning-reason" id="warningReason"></div>
+      <button class="btn" type="button" onclick="closeWarningScreen()">Verstanden</button>
     </div>
   </div>
 
@@ -2831,17 +2846,28 @@
       }
     }
 
+    const announcedWarningIds = new Set();
     function announceWarnings(warnings) {
-      if (!Array.isArray(warnings) || !warnings.length) return;
-      const text = warnings.map(function (w) { return 'Du hast eine Verwarnung bekommen. ' + w.reason; }).join('\n');
-      alert(text);
+      if (!Array.isArray(warnings)) return;
+      const fresh = warnings.filter(function (w) { return w && w.id && !announcedWarningIds.has(w.id); });
+      if (!fresh.length) return;
+      fresh.forEach(function (w) { announcedWarningIds.add(w.id); });
+      const warning = fresh[0];
+      document.getElementById('warningReason').textContent = warning.reason || 'Bitte beachte künftig die Regeln der Seite.';
+      document.getElementById('warningScreen').classList.add('show');
       if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance('Du hast eine Verwarnung bekommen. ' + warnings[0].reason);
+        const utterance = new SpeechSynthesisUtterance('Du wurdest verwarnt.');
         utterance.lang = 'de-DE';
         const voice = window.speechSynthesis.getVoices().find(function (v) { return /male|männ|markus|hans|stefan/i.test(v.name); });
         if (voice) utterance.voice = voice;
         window.speechSynthesis.speak(utterance);
       }
+    }
+    function closeWarningScreen() { document.getElementById('warningScreen').classList.remove('show'); }
+    async function pollWarnings() {
+      if (!getToken()) return;
+      const me = await apiGet('/api/me', getToken());
+      if (me && me.success) announceWarnings(me.warnings);
     }
 
     let feedAnnSig = null;
@@ -3532,6 +3558,7 @@
         if (document.getElementById('main').classList.contains('active')) {
           loadFeed();
           pollMaintenance();
+          pollWarnings();
         }
       }, 2000);
     })();
