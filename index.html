@@ -491,6 +491,11 @@
     }
     .dm-text { font-size: 13px; color: #e3d9f5; line-height: 1.45; word-break: break-word; white-space: pre-wrap; }
     .dm-time { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: #5b4a7a; margin-top: 4px; text-align: right; }
+    .dm-receipt {
+      display: inline-block; font-family: 'Share Tech Mono', monospace; font-size: 10px;
+      color: #7d6a9d; margin-left: 6px;
+    }
+    .dm-receipt.read { color: #7ae0e0; text-shadow: 0 0 6px rgba(122,224,224,0.6); }
     .dm-thread .chat-input, .dm-thread .chat-tip {
       background: rgba(12,14,24,0.92); border-color: rgba(139,63,240,0.45);
     }
@@ -897,7 +902,10 @@
     <div class="shell">
       <div class="admin-head">
         <div class="brand">◈ FREUNDE &amp; NACHRICHTEN</div>
-        <button class="btn danger" onclick="toggleDmOverlay()">Schließen</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn mini" id="dmSoundBtn" onclick="toggleDmSound()" title="Benachrichtigungs-Sound an/aus">&#128276;</button>
+          <button class="btn danger" onclick="toggleDmOverlay()">Schließen</button>
+        </div>
       </div>
 
       <div class="dm-pane" id="dmListPane">
@@ -1288,18 +1296,23 @@
       if (!token) return;
       const input = document.getElementById('chatText');
       const text = input.value.trim();
-      if (!text) return;
-      const data = await api('/api/chat/send', { message: text }, token);
-      if (!data.success) {
-        const tip = document.getElementById('chatTip');
-        const normal = tip.getAttribute('data-normal') || tip.textContent;
-        tip.setAttribute('data-normal', normal);
-        tip.textContent = data.error || 'Fehler.';
-        setTimeout(function () { tip.textContent = normal; }, 4000);
-        return;
+      if (!text || input.dataset.sending) return;
+      input.dataset.sending = '1';
+      try {
+        const data = await api('/api/chat/send', { message: text }, token);
+        if (!data.success) {
+          const tip = document.getElementById('chatTip');
+          const normal = tip.getAttribute('data-normal') || tip.textContent;
+          tip.setAttribute('data-normal', normal);
+          tip.textContent = data.error || 'Fehler.';
+          setTimeout(function () { tip.textContent = normal; }, 4000);
+          return;
+        }
+        input.value = '';
+        appendChatMessage(data.message);
+      } finally {
+        delete input.dataset.sending;
       }
-      input.value = '';
-      appendChatMessage(data.message);
     }
 
     function escapeAttr(text) {
@@ -1449,6 +1462,7 @@
 
     function renderConversations(convs) {
       const box = document.getElementById('dmConvList');
+      const me = getStoredUser().username;
       if (!convs.length) {
         box.innerHTML = '<h3>Nachrichten</h3><div class="empty">Sobald du Freunde hast, kannst du hier privat schreiben.</div>';
         return;
@@ -1458,11 +1472,15 @@
         const name = c.alias || c.username;
         const badge = c.unread > 0 ? '<span class="badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '';
         const time = c.last_created ? '<span class="f-time">' + chatTime(c.last_created) + '</span>' : '';
+        const mineLast = c.last_message && c.last_sender === me;
+        const receipt = mineLast
+          ? '<span class="dm-receipt' + (c.my_last_read ? ' read' : '') + '" title="' + (c.my_last_read ? 'Gelesen' : 'Gesendet') + '">' + (c.my_last_read ? '&#10003;&#10003;' : '&#10003;') + '</span> '
+          : '';
         return '<div class="f-row conv" onclick="openDmThread(\'' + escapeAttr(c.username) + '\')">' +
           friendAvatarHtml(c) +
           '<div class="f-info"><div class="f-line"><span class="f-name" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
           badge + time + '</div>' +
-          '<div class="f-prev">' + escapeHtml(c.last_message || 'Noch keine Nachrichten') + '</div></div></div>';
+          '<div class="f-prev">' + receipt + escapeHtml(c.last_message || '') + '</div></div></div>';
       }).join('');
     }
 
@@ -1545,11 +1563,36 @@
       document.getElementById('dmThreadPane').classList.add('hidden');
     }
 
+    function dmMsgHtml(m, isMe) {
+      const color = roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
+      const name = m.sender_alias || m.sender;
+      let meta = '';
+      if (!isMe) {
+        meta = '<div class="cmeta"><span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+          (m.sender_role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
+      }
+      const receipt = isMe
+        ? '<span class="dm-receipt' + (m.read ? ' read' : '') + '" title="' + (m.read ? 'Gelesen' : 'Gesendet') + '">' + (m.read ? '&#10003;&#10003;' : '&#10003;') + '</span>'
+        : '';
+      return '<div class="dm-msg ' + (isMe ? 'me' : 'other') + '" data-mid="' + m.id + '">' +
+        '<div class="dm-bubble">' + meta +
+        '<div class="dm-text">' + escapeHtml(m.message || '') + '</div>' +
+        '<div class="dm-time">' + chatTime(m.created_at) + receipt + '</div></div></div>';
+    }
+
+    function appendDmMessage(m, isMe) {
+      const box = document.getElementById('dmMsgs');
+      if ((m.id || 0) <= dmLastId) return;
+      dmLastId = m.id;
+      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+      box.insertAdjacentHTML('beforeend', dmMsgHtml(m, isMe));
+      if (nearBottom) box.scrollTop = box.scrollHeight;
+    }
+
     async function pollDmThread() {
       const token = getToken();
       if (!token || !dmThreadFriend) return;
-      const url = '/api/dm/messages?friend=' + encodeURIComponent(dmThreadFriend) + (dmLastId ? '&after=' + dmLastId : '');
-      const data = await apiGet(url, token);
+      const data = await apiGet('/api/dm/messages?friend=' + encodeURIComponent(dmThreadFriend), token);
       if (!data || !Array.isArray(data.messages)) return;
       const me = getStoredUser().username;
       const box = document.getElementById('dmMsgs');
@@ -1561,26 +1604,20 @@
           (data.friend.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
       }
       data.messages.forEach(function (m) {
-        if ((m.id || 0) <= dmLastId) return;
-        dmLastId = m.id;
-        const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-        box.insertAdjacentHTML('beforeend', dmMsgHtml(m, m.sender === me));
-        if (nearBottom) box.scrollTop = box.scrollHeight;
+        const isMe = m.sender === me;
+        const el = box.querySelector('.dm-msg[data-mid="' + m.id + '"]');
+        if (!el) {
+          appendDmMessage(m, isMe);
+        } else if (isMe) {
+          const r = el.querySelector('.dm-receipt');
+          if (r) {
+            const read = m.read === 1;
+            r.className = 'dm-receipt' + (read ? ' read' : '');
+            r.textContent = read ? '\u2713\u2713' : '\u2713';
+            r.title = read ? 'Gelesen' : 'Gesendet';
+          }
+        }
       });
-    }
-
-    function dmMsgHtml(m, isMe) {
-      const color = roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
-      const name = m.sender_alias || m.sender;
-      let meta = '';
-      if (!isMe) {
-        meta = '<div class="cmeta"><span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
-          (m.sender_role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
-      }
-      return '<div class="dm-msg ' + (isMe ? 'me' : 'other') + '">' +
-        '<div class="dm-bubble">' + meta +
-        '<div class="dm-text">' + escapeHtml(m.message || '') + '</div>' +
-        '<div class="dm-time">' + chatTime(m.created_at) + '</div></div></div>';
     }
 
     async function sendDm() {
@@ -1588,23 +1625,88 @@
       if (!token || !dmThreadFriend) return;
       const input = document.getElementById('dmText');
       const text = input.value.trim();
-      if (!text) return;
-      const data = await api('/api/dm/send', { to: dmThreadFriend, message: text }, token);
-      if (!data.success) {
-        const tip = document.getElementById('dmTip');
-        tip.setAttribute('data-normal', tip.getAttribute('data-normal') || tip.textContent);
-        tip.textContent = data.error || 'Fehler.';
-        return;
+      if (!text || input.dataset.sending) return;
+      input.dataset.sending = '1';
+      try {
+        const data = await api('/api/dm/send', { to: dmThreadFriend, message: text }, token);
+        if (!data.success) {
+          const tip = document.getElementById('dmTip');
+          tip.setAttribute('data-normal', tip.getAttribute('data-normal') || tip.textContent);
+          tip.textContent = data.error || 'Fehler.';
+          return;
+        }
+        input.value = '';
+        const me = getStoredUser().username;
+        appendDmMessage(data.message, data.message.sender === me);
+      } finally {
+        delete input.dataset.sending;
       }
-      input.value = '';
-      const me = getStoredUser().username;
-      const box = document.getElementById('dmMsgs');
-      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-      box.insertAdjacentHTML('beforeend', dmMsgHtml(data.message, data.message.sender === me));
-      if (nearBottom) box.scrollTop = box.scrollHeight;
     }
 
     let userPopupName = null;
+
+    let dmUnreadTimer = null;
+    let lastUnreadSeen = Number(localStorage.getItem('ndUnreadSeen') || 0);
+    let dmAudioCtx = null;
+
+    function dmSoundEnabled() {
+      return localStorage.getItem('ndSound') !== 'off';
+    }
+
+    function updateDmSoundBtn() {
+      const btn = document.getElementById('dmSoundBtn');
+      if (btn) btn.textContent = dmSoundEnabled() ? '\uD83D\uDD14' : '\uD83D\uDD15';
+    }
+
+    function toggleDmSound() {
+      localStorage.setItem('ndSound', dmSoundEnabled() ? 'off' : 'on');
+      updateDmSoundBtn();
+    }
+
+    function playDmSound() {
+      try {
+        if (!dmAudioCtx) dmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (dmAudioCtx.state === 'suspended') dmAudioCtx.resume();
+        const t0 = dmAudioCtx.currentTime;
+        [660, 990].forEach(function (f, i) {
+          const o = dmAudioCtx.createOscillator();
+          const g = dmAudioCtx.createGain();
+          o.type = 'sine';
+          o.frequency.value = f;
+          const start = t0 + i * 0.16;
+          g.gain.setValueAtTime(0.0001, start);
+          g.gain.exponentialRampToValueAtTime(0.16, start + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+          o.connect(g);
+          g.connect(dmAudioCtx.destination);
+          o.start(start);
+          o.stop(start + 0.24);
+        });
+      } catch (e) {}
+    }
+
+    async function pollDmUnread() {
+      const token = getToken();
+      if (!token) return;
+      const data = await apiGet('/api/dm/unread', token);
+      if (!data || !Array.isArray(data.messages)) return;
+      const badge = document.getElementById('dmBadge');
+      if (data.total > 0) {
+        badge.textContent = data.total > 9 ? '9+' : data.total;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+      if (!data.total) return;
+      const latest = data.latest_id;
+      if (latest > lastUnreadSeen) {
+        lastUnreadSeen = latest;
+        localStorage.setItem('ndUnreadSeen', String(latest));
+        const newest = data.messages[0];
+        const inThread = document.getElementById('dmOverlay').classList.contains('show') && dmThreadFriend === newest.sender;
+        if (dmSoundEnabled() && !inThread) playDmSound();
+      }
+    }
 
     async function openUserPopup(username) {
       userPopupName = username;
@@ -1786,9 +1888,14 @@
       closeAdmin();
       closeProfile();
       closeDmOverlay();
+      closeUserPopup();
       loadFeed();
       startChat();
       document.getElementById('btnFriends').classList.remove('hidden');
+      updateDmSoundBtn();
+      if (dmUnreadTimer) clearInterval(dmUnreadTimer);
+      pollDmUnread();
+      dmUnreadTimer = setInterval(pollDmUnread, 3000);
     }
 
     function openAdmin() {
@@ -1897,8 +2004,10 @@
       closeAdmin();
       closeProfile();
       closeDmOverlay();
+      closeUserPopup();
       stopChatPolling();
       hideChat();
+      if (dmUnreadTimer) { clearInterval(dmUnreadTimer); dmUnreadTimer = null; }
       document.getElementById('btnFriends').classList.add('hidden');
       document.getElementById('main').classList.remove('active');
       document.getElementById('loginCard').classList.remove('hidden');

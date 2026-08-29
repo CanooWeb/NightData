@@ -86,6 +86,9 @@ export default {
       if (url.pathname === '/api/dm/messages' && request.method === 'GET') {
         return await handleDmMessages(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/dm/unread' && request.method === 'GET') {
+        return await handleDmUnread(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/dm/send' && request.method === 'POST') {
         return await handleDmSend(request, env, corsHeaders);
       }
@@ -768,10 +771,12 @@ async function handleDmConversations(request, env, corsHeaders) {
 
   const lastByPeer = {};
   const unreadByPeer = {};
+  const myLastReadByPeer = {};
   for (const m of msgs) {
     const peer = m.sender === me ? m.recipient : m.sender;
     if (!(peer in lastByPeer)) lastByPeer[peer] = m;
     if (m.recipient === me && m.read === 0) unreadByPeer[peer] = (unreadByPeer[peer] || 0) + 1;
+    if (m.sender === me && !(peer in myLastReadByPeer)) myLastReadByPeer[peer] = m.read === 1;
   }
 
   const convs = friends.map(name => {
@@ -784,12 +789,27 @@ async function handleDmConversations(request, env, corsHeaders) {
       role: info ? info.role : null,
       last_message: last ? last.message : null,
       last_created: last ? last.created_at : null,
+      last_sender: last ? last.sender : me,
+      my_last_read: !!myLastReadByPeer[name],
       unread: unreadByPeer[name] || 0
     };
   });
   convs.sort((x, y) => String(y.last_created || '').localeCompare(String(x.last_created || '')));
 
   return json({ conversations: convs }, 200, corsHeaders);
+}
+
+async function handleDmUnread(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  const messages = (await env.DB.prepare(
+    'SELECT m.id, m.sender, m.message, m.created_at, u.avatar, u.alias, u.role FROM dm_messages m LEFT JOIN users u ON u.username = m.sender WHERE m.recipient = ? AND m.read = 0 ORDER BY m.id DESC LIMIT 10'
+  ).bind(me).all()).results;
+  const total = (await env.DB.prepare('SELECT COUNT(*) AS c FROM dm_messages WHERE recipient = ? AND read = 0').bind(me).first()).c || 0;
+
+  return json({ total, messages, latest_id: messages.length ? messages[0].id : 0 }, 200, corsHeaders);
 }
 
 async function isFriend(env, a, b) {
