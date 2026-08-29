@@ -53,6 +53,42 @@ export default {
       if (url.pathname === '/api/chat/send' && request.method === 'POST') {
         return await handleChatSend(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/chat/delete' && request.method === 'POST') {
+        return await handleAdminChatDelete(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/chat/mute' && request.method === 'POST') {
+        return await handleAdminChatMute(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/admin/chat/unmute' && request.method === 'POST') {
+        return await handleAdminChatUnmute(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/friends' && request.method === 'GET') {
+        return await handleFriendsGet(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/friends/request' && request.method === 'POST') {
+        return await handleFriendRequest(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/friends/accept' && request.method === 'POST') {
+        return await handleFriendAccept(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/friends/decline' && request.method === 'POST') {
+        return await handleFriendDecline(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/friends/withdraw' && request.method === 'POST') {
+        return await handleFriendWithdraw(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/friends/remove' && request.method === 'POST') {
+        return await handleFriendRemove(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/dm/conversations' && request.method === 'GET') {
+        return await handleDmConversations(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/dm/messages' && request.method === 'GET') {
+        return await handleDmMessages(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/dm/send' && request.method === 'POST') {
+        return await handleDmSend(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
       }
@@ -213,6 +249,42 @@ async function ensureSchema(env) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       author TEXT NOT NULL,
       message TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS mutes (
+      username TEXT PRIMARY KEY,
+      until TEXT,
+      muted_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS friend_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_user TEXT NOT NULL,
+      to_user TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(from_user, to_user)
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS friends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_a TEXT NOT NULL,
+      user_b TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_a, user_b)
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS dm_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      message TEXT NOT NULL,
+      read INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
@@ -407,12 +479,13 @@ async function handleProfileUpdate(request, env, corsHeaders) {
 }
 
 const CHAT_JOIN =
-  'SELECT m.id, m.author, m.message, m.created_at, u.avatar, u.alias, u.role FROM chat_messages m LEFT JOIN users u ON u.username = m.author';
+  'SELECT m.id, m.author, m.message, m.created_at, u.avatar, u.alias, u.role, mu.until AS muted_until FROM chat_messages m LEFT JOIN users u ON u.username = m.author LEFT JOIN mutes mu ON mu.username = m.author';
 
 async function handleChatGet(request, env, corsHeaders) {
   const user = await getAuthUser(request, env);
   if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
 
+  await env.DB.prepare("DELETE FROM mutes WHERE until != 'PERM' AND until IS NOT NULL AND datetime(until) <= datetime('now')").run();
   const rows = (await env.DB.prepare(CHAT_JOIN + ' ORDER BY m.id DESC LIMIT 50').all()).results.reverse();
   return json({ messages: rows }, 200, corsHeaders);
 }
@@ -422,6 +495,7 @@ async function handleChatNew(request, env, corsHeaders) {
   if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
 
   const after = Math.max(Number(new URL(request.url).searchParams.get('after')) || 0, 0);
+  await env.DB.prepare("DELETE FROM mutes WHERE until != 'PERM' AND until IS NOT NULL AND datetime(until) <= datetime('now')").run();
   const messages = (await env.DB.prepare(CHAT_JOIN + ' WHERE m.id > ? ORDER BY m.id ASC LIMIT 100').bind(after).all()).results;
   return json({ messages }, 200, corsHeaders);
 }
@@ -429,6 +503,14 @@ async function handleChatNew(request, env, corsHeaders) {
 async function handleChatSend(request, env, corsHeaders) {
   const user = await getAuthUser(request, env);
   if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const muted = await isMuted(user.username, env);
+  if (muted) {
+    const msg = muted.permanent
+      ? 'Du bist im Live-Chat dauerhaft stummgeschaltet.'
+      : 'Du bist im Live-Chat stummgeschaltet bis ' + fmtSqlDt(muted.until) + '.';
+    return json({ error: msg }, 403, corsHeaders);
+  }
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -450,6 +532,314 @@ async function handleChatSend(request, env, corsHeaders) {
 
   await env.DB.prepare('DELETE FROM chat_messages WHERE id < (SELECT COALESCE(MAX(id), 0) - 400 FROM chat_messages)').run();
 
+  return json({ success: true, message: msg }, 201, corsHeaders);
+}
+
+function isStaffMember(user) {
+  return user && ['founder', 'admin', 'moderator'].includes(user.role);
+}
+
+function fmtSqlDt(sqlDt) {
+  try {
+    return new Date(String(sqlDt).replace(' ', 'T') + 'Z').toLocaleString('de-DE', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  } catch (e) { return String(sqlDt || ''); }
+}
+
+async function isMuted(username, env) {
+  const row = await env.DB.prepare('SELECT until FROM mutes WHERE username = ?').bind(username).first();
+  if (!row) return null;
+  const u = row.until;
+  if (u === 'PERM') return { permanent: true, until: null };
+  const ms = Date.parse(String(u).replace(' ', 'T') + 'Z');
+  if (!ms || ms <= Date.now()) {
+    await env.DB.prepare('DELETE FROM mutes WHERE username = ?').bind(username).run();
+    return null;
+  }
+  return { permanent: false, until: String(u) };
+}
+
+function isFounderRole(u) { return !!u && u.role === 'founder'; }
+function isAdminRole(u) { return !!u && (u.role === 'founder' || u.role === 'admin'); }
+
+function canModerate(targetUser, actor) {
+  if (isFounderRole(actor)) return targetUser.role !== 'founder';
+  if (targetUser.role === 'founder') return false;
+  if (isAdminRole(actor)) return targetUser.role !== 'admin';
+  return targetUser.role !== 'founder' && targetUser.role !== 'admin' && targetUser.role !== 'moderator';
+}
+
+async function handleAdminChatDelete(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  if (!isStaffMember(user)) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const id = Number(body.id);
+  if (!id) return json({ error: 'Keine Nachrichten-ID.' }, 400, corsHeaders);
+
+  await env.DB.prepare('DELETE FROM chat_messages WHERE id = ?').bind(id).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleAdminChatMute(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  if (!isStaffMember(user)) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const author = String(body.author || '').trim();
+  if (!author) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+
+  const target = await env.DB.prepare('SELECT username, role FROM users WHERE username = ?').bind(author).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+  if (target.username === user.username) return json({ error: 'Du kannst dich nicht selbst stummschalten.' }, 400, corsHeaders);
+  if (!canModerate(target, user)) return json({ error: 'Keine Berechtigung, diesen Benutzer stummzuschalten.' }, 403, corsHeaders);
+
+  let duration = body.duration;
+  let until;
+  if (String(duration).trim() === '0' || String(duration).trim() === 'perm') {
+    until = 'PERM';
+  } else {
+    const secs = Math.max(Number(duration) || 0, 0);
+    if (secs <= 0) return json({ error: 'Ungültige Dauer.' }, 400, corsHeaders);
+    const row = await env.DB.prepare("SELECT datetime('now', '+' || ? || ' seconds') AS t").bind(secs).first();
+    until = row.t;
+  }
+
+  await env.DB.prepare('INSERT INTO mutes (username, until, muted_by) VALUES (?, ?, ?) ON CONFLICT(username) DO UPDATE SET until = excluded.until, muted_by = excluded.muted_by, created_at = datetime(\'now\')')
+    .bind(author, until, user.username).run();
+
+  return json({ success: true, mutes: await isMuted(author, env), until }, 200, corsHeaders);
+}
+
+async function handleAdminChatUnmute(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  if (!isStaffMember(user)) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const author = String(body.author || '').trim();
+  if (!author) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+
+  await env.DB.prepare('DELETE FROM mutes WHERE username = ?').bind(author).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleFriendsGet(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  const incoming = (await env.DB.prepare(
+    'SELECT fr.id, fr.from_user AS username, fr.created_at, u.avatar, u.alias, u.role FROM friend_requests fr JOIN users u ON u.username = fr.from_user WHERE fr.to_user = ? ORDER BY fr.id DESC'
+  ).bind(me).all()).results;
+
+  const outgoing = (await env.DB.prepare(
+    'SELECT fr.id, fr.to_user AS username, fr.created_at, u.avatar, u.alias, u.role FROM friend_requests fr JOIN users u ON u.username = fr.to_user WHERE fr.from_user = ? ORDER BY fr.id DESC'
+  ).bind(me).all()).results;
+
+  const friends = (await env.DB.prepare(
+    "SELECT f.user_a, f.user_b, f.created_at, u.username, u.avatar, u.alias, u.role FROM friends f JOIN users u ON u.username = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END WHERE f.user_a = ? OR f.user_b = ? ORDER BY f.id DESC"
+  ).bind(me, me, me).all()).results;
+
+  return json({ friends, incoming, outgoing }, 200, corsHeaders);
+}
+
+async function handleFriendRequest(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const friend = String(body.username || '').trim();
+  if (!friend) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+  if (friend === me) return json({ error: 'Du kannst dich nicht selbst als Freund hinzufügen.' }, 400, corsHeaders);
+
+  const target = await env.DB.prepare('SELECT username, role FROM users WHERE username = ?').bind(friend).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+
+  const already = await env.DB.prepare(
+    'SELECT id FROM friends WHERE (user_a = ? AND user_b = ?) OR (user_a = ? AND user_b = ?)'
+  ).bind(me, friend, friend, me).first();
+  if (already) return json({ error: friend + ' ist bereits dein Freund.' }, 400, corsHeaders);
+
+  const pending = await env.DB.prepare(
+    'SELECT id FROM friend_requests WHERE (from_user = ? AND to_user = ?) OR (from_user = ? AND to_user = ?)'
+  ).bind(me, friend, friend, me).first();
+  if (pending) return json({ error: 'Eine Anfrage ist bereits offen.' }, 400, corsHeaders);
+
+  await env.DB.prepare('INSERT INTO friend_requests (from_user, to_user) VALUES (?, ?)').bind(me, friend).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleFriendAccept(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const from = String(body.from || '').trim();
+  if (!from) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+
+  const req = await env.DB.prepare('SELECT id FROM friend_requests WHERE from_user = ? AND to_user = ?').bind(from, me).first();
+  if (!req) return json({ error: 'Keine offene Anfrage.' }, 404, corsHeaders);
+
+  const a = from < me ? from : me;
+  const b = from < me ? me : from;
+  await env.DB.prepare('INSERT INTO friends (user_a, user_b) VALUES (?, ?) ON CONFLICT(user_a, user_b) DO NOTHING').bind(a, b).run();
+  await env.DB.prepare('DELETE FROM friend_requests WHERE from_user = ? AND to_user = ?').bind(from, me).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleFriendDecline(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const from = String(body.from || '').trim();
+  if (!from) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+
+  await env.DB.prepare('DELETE FROM friend_requests WHERE from_user = ? AND to_user = ?').bind(from, me).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleFriendWithdraw(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const friend = String(body.username || '').trim();
+  if (!friend) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+
+  await env.DB.prepare('DELETE FROM friend_requests WHERE from_user = ? AND to_user = ?').bind(me, friend).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+async function handleFriendRemove(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const friend = String(body.username || '').trim();
+  if (!friend) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+
+  await env.DB.prepare('DELETE FROM friends WHERE (user_a = ? AND user_b = ?) OR (user_a = ? AND user_b = ?)').bind(me, friend, friend, me).run();
+  return json({ success: true }, 200, corsHeaders);
+}
+
+const DM_JOIN =
+  'SELECT m.id, m.sender, m.recipient, m.message, m.read, m.created_at, us.avatar AS sender_avatar, us.alias AS sender_alias, us.role AS sender_role, ut.avatar AS rec_avatar, ut.alias AS rec_alias, ut.role AS rec_role FROM dm_messages m LEFT JOIN users us ON us.username = m.sender LEFT JOIN users ut ON ut.username = m.recipient';
+
+async function peerUser(row, me) {
+  return {
+    username: row.sender === me ? row.recipient : row.sender,
+    avatar: row.sender === me ? row.rec_avatar : row.sender_avatar,
+    alias: row.sender === me ? row.rec_alias : row.sender_alias,
+    role: row.sender === me ? row.rec_role : row.sender_role
+  };
+}
+
+async function handleDmConversations(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  const friends = (await env.DB.prepare(
+    "SELECT f.created_at, u.username FROM friends f JOIN users u ON u.username = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END WHERE f.user_a = ? OR f.user_b = ?"
+  ).bind(me, me, me).all()).results.map(r => r.username);
+
+  const msgs = (await env.DB.prepare(DM_JOIN + ' WHERE m.sender = ? OR m.recipient = ? ORDER BY m.id DESC LIMIT 1000').bind(me, me).all()).results;
+
+  const lastByPeer = {};
+  const unreadByPeer = {};
+  for (const m of msgs) {
+    const peer = m.sender === me ? m.recipient : m.sender;
+    if (!(peer in lastByPeer)) lastByPeer[peer] = m;
+    if (m.recipient === me && m.read === 0) unreadByPeer[peer] = (unreadByPeer[peer] || 0) + 1;
+  }
+
+  const convs = friends.map(name => {
+    const last = lastByPeer[name];
+    const info = last ? peerUser(last, me) : null;
+    return {
+      username: name,
+      avatar: info ? info.avatar : null,
+      alias: info ? info.alias : null,
+      role: info ? info.role : null,
+      last_message: last ? last.message : null,
+      last_created: last ? last.created_at : null,
+      unread: unreadByPeer[name] || 0
+    };
+  });
+  convs.sort((x, y) => String(y.last_created || '').localeCompare(String(x.last_created || '')));
+
+  return json({ conversations: convs }, 200, corsHeaders);
+}
+
+async function isFriend(env, a, b) {
+  const row = await env.DB.prepare('SELECT id FROM friends WHERE (user_a = ? AND user_b = ?) OR (user_a = ? AND user_b = ?)').bind(a, b, b, a).first();
+  return !!row;
+}
+
+async function handleDmMessages(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+  const friend = String(new URL(request.url).searchParams.get('friend') || '').trim();
+  if (!friend) return json({ error: 'Kein Freund angegeben.' }, 400, corsHeaders);
+  if (!(await isFriend(env, me, friend))) return json({ error: 'Ihr seid keine Freunde.' }, 403, corsHeaders);
+
+  const after = Math.max(Number(new URL(request.url).searchParams.get('after')) || 0, 0);
+  const messages = (await env.DB.prepare(
+    DM_JOIN + ' WHERE ((m.sender = ? AND m.recipient = ?) OR (m.sender = ? AND m.recipient = ?)) AND m.id > ? ORDER BY m.id ASC LIMIT 100'
+  ).bind(me, friend, friend, me, after).all()).results;
+
+  const contact = (await env.DB.prepare('SELECT username, avatar, alias, role FROM users WHERE username = ?').bind(friend).first());
+  if (contact) {
+    await env.DB.prepare('UPDATE dm_messages SET read = 1 WHERE recipient = ? AND sender = ?').bind(me, friend).run();
+  }
+
+  return json({ messages, friend: contact }, 200, corsHeaders);
+}
+
+async function handleDmSend(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const me = user.username;
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const to = String(body.to || '').trim();
+  const message = String(body.message || '').trim().slice(0, 500);
+  if (!to) return json({ error: 'Kein Empfänger.' }, 400, corsHeaders);
+  if (!message) return json({ error: 'Du kannst keine leere Nachricht senden.' }, 400, corsHeaders);
+  if (!(await isFriend(env, me, to))) return json({ error: 'Du kannst nur Freunden privat schreiben.' }, 403, corsHeaders);
+
+  const last = await env.DB.prepare('SELECT created_at FROM dm_messages WHERE sender = ? ORDER BY id DESC LIMIT 1').bind(me).first();
+  if (last) {
+    try {
+      const lastMs = Date.parse(String(last.created_at).replace(' ', 'T') + 'Z') || 0;
+      if (lastMs && (Date.now() - lastMs) < 2000) {
+        return json({ error: 'Bitte kurz warten, bevor du die nächste Nachricht sendest.' }, 429, corsHeaders);
+      }
+    } catch (e) {}
+  }
+
+  const result = await env.DB.prepare('INSERT INTO dm_messages (sender, recipient, message) VALUES (?, ?, ?)').bind(me, to, message).run();
+  const msg = (await env.DB.prepare(DM_JOIN + ' WHERE m.id = ?').bind(result.meta.last_row_id).first());
   return json({ success: true, message: msg }, 201, corsHeaders);
 }
 

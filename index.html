@@ -423,6 +423,81 @@
     }
     .chatmin:not(.hidden) { display: block; }
     .chatmin:hover { box-shadow: 0 0 16px rgba(139,63,240,0.45); }
+
+    .floatui-friends {
+      position: absolute; bottom: 18px; right: 96px; pointer-events: auto;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+    }
+    .badge {
+      display: inline-block; background: #ff5252; color: #fff; border-radius: 999px;
+      font-family: 'Share Tech Mono', monospace; font-size: 10px; line-height: 1;
+      padding: 3px 6px; margin-left: 2px; vertical-align: middle;
+      box-shadow: 0 0 8px rgba(255,82,82,0.7);
+    }
+
+    .dmoverlay {
+      position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto;
+      padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px);
+    }
+    .dmoverlay.show { display: block; }
+    .dmoverlay .shell { max-width: 680px; margin: 0 auto; }
+    .dm-pane { display: flex; flex-direction: column; gap: 14px; }
+    .dm-section h3 {
+      font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 2px; color: #b18bf0;
+      margin: 14px 0 8px;
+    }
+    .dm-addrow { display: flex; gap: 8px; margin-bottom: 6px; }
+    .dm-addrow input {
+      flex: 1; background: rgba(10,12,20,0.9); color: #e3d9f5; border: 1px solid rgba(139,63,240,0.35);
+      border-radius: 10px; padding: 9px 12px; font-family: 'Share Tech Mono', monospace; font-size: 13px; outline: none;
+    }
+    .dm-addrow input:focus { border-color: rgba(139,63,240,0.8); }
+    .f-row {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 8px;
+      background: rgba(16,19,32,0.8); border: 1px solid rgba(139,63,240,0.22); border-radius: 12px;
+    }
+    .f-row.conv { cursor: pointer; transition: all .2s; }
+    .f-row.conv:hover { border-color: rgba(139,63,240,0.6); box-shadow: 0 0 12px rgba(139,63,240,0.25); }
+    .f-info { flex: 1; min-width: 0; }
+    .f-line { display: flex; align-items: center; gap: 6px; }
+    .f-name { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+    .f-time { margin-left: auto; font-family: 'Share Tech Mono', monospace; font-size: 9px; color: #5b4a7a; }
+    .f-prev { font-size: 12px; color: #7d6a9d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+
+    .dm-thread { display: flex; flex-direction: column; height: min(72vh, 620px); }
+    .dm-thread.hidden { display: none; }
+    .dm-thread-head {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      background: rgba(12,14,24,0.92); border: 1px solid rgba(139,63,240,0.45); border-bottom: none;
+      border-radius: 14px 14px 0 0;
+    }
+    .dm-msgs {
+      flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+      background: rgba(12,14,24,0.92); border: 1px solid rgba(139,63,240,0.45); border-bottom: none;
+    }
+    .dm-msg { display: flex; gap: 8px; }
+    .dm-msg.me { justify-content: flex-end; }
+    .dm-msg.me .dm-bubble { background: rgba(139,63,240,0.28); border: 1px solid rgba(139,63,240,0.5); }
+    .dm-bubble {
+      max-width: 78%; padding: 8px 12px; border-radius: 14px;
+      background: rgba(16,19,32,0.9); border: 1px solid rgba(139,63,240,0.25);
+    }
+    .dm-text { font-size: 13px; color: #e3d9f5; line-height: 1.45; word-break: break-word; white-space: pre-wrap; }
+    .dm-time { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: #5b4a7a; margin-top: 4px; text-align: right; }
+    .dm-thread .chat-input, .dm-thread .chat-tip {
+      background: rgba(12,14,24,0.92); border-color: rgba(139,63,240,0.45);
+    }
+    .dm-thread .chat-input { border-radius: 0; border-top: none; }
+    .dm-thread .chat-tip { border: 1px solid rgba(139,63,240,0.45); border-top: none; border-radius: 0 0 14px 14px; }
+
+    .c-actions { display: flex; gap: 6px; margin-top: 6px; }
+    .c-btn {
+      background: rgba(16,19,32,0.9); border: 1px solid rgba(139,63,240,0.35); color: #b18bf0;
+      border-radius: 8px; padding: 2px 8px; cursor: pointer; font-size: 11px; line-height: 1.4;
+    }
+    .c-btn:hover { color: #e3c9ff; box-shadow: 0 0 8px rgba(139,63,240,0.4); }
+    .muted-tag { background: rgba(255,82,82,0.12); }
+
     @media (max-width: 700px) {
       .chatpanel { right: 10px; left: 10px; width: auto; height: 45vh; top: auto; bottom: 12px; }
       .chatmin { right: 10px; bottom: 12px; top: auto; transform: none; }
@@ -563,6 +638,7 @@
       <button class="profile-gear" onclick="openProfile()" title="Profil bearbeiten">⚙</button>
     </div>
     <button class="btn ok adminonly floatui-admin" id="btnAdmin" onclick="openAdmin()">◈ Admin</button>
+    <button class="btn mini floatui-friends" id="btnFriends" onclick="toggleDmOverlay()" title="Freunde & Nachrichten">&#9679; <span id="dmBadge" class="badge hidden">0</span> Freunde</button>
     <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
   </div>
 
@@ -776,6 +852,48 @@
     </div>
   </div>
 
+  <div class="dmoverlay" id="dmOverlay">
+    <div class="shell">
+      <div class="admin-head">
+        <div class="brand">◈ FREUNDE &amp; NACHRICHTEN</div>
+        <button class="btn danger" onclick="toggleDmOverlay()">Schließen</button>
+      </div>
+
+      <div class="dm-pane" id="dmListPane">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Freunde hinzufügen</h2>
+            <span class="live">● IM BEZUG</span>
+          </div>
+          <div class="panel-body">
+            <div class="dm-addrow">
+              <input type="text" id="friendAddInput" maxlength="32" placeholder="Benutzername…" autocomplete="off" onkeydown="if(event.key==='Enter'){addFriend();}">
+              <button class="btn mini" onclick="addFriend()">Anfrage senden</button>
+            </div>
+            <div id="friendAddMsg" class="message"></div>
+            <div id="dmRequests" class="dm-section"></div>
+            <div id="dmOutgoing" class="dm-section"></div>
+            <div id="dmFriendsList" class="dm-section"></div>
+          </div>
+        </div>
+        <div id="dmConvList" class="dm-section dm-conv-section"></div>
+      </div>
+
+      <div class="dm-thread hidden" id="dmThreadPane">
+        <div class="dm-thread-head">
+          <button class="btn mini" onclick="backDmThread()" title="Zurück">&#8592;</button>
+          <span id="dmThreadName"></span>
+        </div>
+        <div class="dm-msgs" id="dmMsgs"><div class="empty">Lade…</div></div>
+        <div class="chat-input">
+          <input type="text" id="dmText" maxlength="500" placeholder="Privatnachricht…" autocomplete="off" onkeydown="if(event.key==='Enter'){sendDm();}">
+          <button class="btn mini" onclick="sendDm()">&#10148;</button>
+        </div>
+        <div class="chat-tip" id="dmTip">Nur zwischen dir und deinem Freund sichtbar</div>
+      </div>
+    </div>
+  </div>
+
   <div class="chatpanel" id="chatPanel">
     <div class="chat-head">
       <span class="live-dot"></span>
@@ -866,6 +984,8 @@
           document.getElementById('adminOverlay').classList.remove('show');
           document.getElementById('main').classList.remove('blur');
           document.getElementById('profileOverlay').classList.remove('show');
+          document.getElementById('dmOverlay').classList.remove('show');
+          closeDmOverlay();
         }
         let blocked = blockedKeys.includes(k);
         if (!blocked) {
@@ -1042,10 +1162,21 @@
         ? '<img class="c-av" src="' + escapeHtml(m.avatar) + '" alt="">'
         : '<span class="c-av c-av-ph" style="color:' + color + '">' + escapeHtml((name[0] || '?').toUpperCase()) + '</span>';
       const role = m.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '';
-      return '<div class="cmsg">' + av +
+      const mutedTag = m.muted_until ? '<span class="c-role muted-tag" style="color:#ff5252;border-color:#ff5252">STUMM</span>' : '';
+      let actions = '';
+      if (chatIsStaff() && String(m.author) !== String(getStoredUser().username || '')) {
+        actions = '<div class="c-actions">' +
+          '<button class="c-btn" title="Nachricht löschen" onclick="adminChatDelete(' + m.id + ')">&#128465;</button>' +
+          (m.muted_until
+            ? '<button class="c-btn" title="Stummschalten aufheben" onclick="adminChatUnmute(\'' + escapeAttr(m.author) + '\')">&#128266;</button>'
+            : '<button class="c-btn" title="Stummschalten" onclick="adminChatMute(\'' + escapeAttr(m.author) + '\')">&#128263;</button>') +
+          '</div>';
+      }
+      return '<div class="cmsg" data-mid="' + m.id + '">' + av +
         '<div class="cbody"><div class="cmeta"><span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
-        role + '<span class="ctime">' + chatTime(m.created_at) + '</span></div>' +
-        '<div class="ctext">' + escapeHtml(m.message || '') + '</div></div></div>';
+        role + mutedTag + '<span class="ctime">' + chatTime(m.created_at) + '</span></div>' +
+        '<div class="ctext">' + escapeHtml(m.message || '') + '</div>' +
+        actions + '</div></div>';
     }
 
     function appendChatMessage(m) {
@@ -1083,6 +1214,8 @@
       showChat();
       stopChatPolling();
       chatLastId = 0;
+      const tip = document.getElementById('chatTip');
+      if (!tip.getAttribute('data-normal')) tip.setAttribute('data-normal', tip.textContent);
       document.getElementById('chatMsgs').innerHTML = '<div class="empty">Verbinde…</div>';
       pollChat();
       chatTimer = setInterval(pollChat, 2000);
@@ -1109,6 +1242,308 @@
       }
       input.value = '';
       appendChatMessage(data.message);
+    }
+
+    function escapeAttr(text) {
+      return String(text || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function chatIsStaff() {
+      const u = getStoredUser();
+      const r = u && u.role;
+      return r === 'founder' || r === 'admin' || r === 'moderator';
+    }
+
+    function showChatTip(msg) {
+      const tip = document.getElementById('chatTip');
+      if (!tip.getAttribute('data-normal')) tip.setAttribute('data-normal', tip.textContent);
+      tip.textContent = msg;
+      setTimeout(function () { tip.textContent = tip.getAttribute('data-normal'); }, 4000);
+    }
+
+    function refreshChat() {
+      chatLastId = 0;
+      const box = document.getElementById('chatMsgs');
+      box.innerHTML = '<div class="empty">Aktualisiere…</div>';
+      pollChat();
+    }
+
+    async function adminChatDelete(id) {
+      const token = getToken();
+      if (!token) return;
+      const el = document.querySelector('#chatMsgs .cmsg[data-mid="' + id + '"]');
+      if (el) el.remove();
+      const data = await api('/api/admin/chat/delete', { id }, token);
+      if (!data.success) showChatTip(data.error || 'Fehler.');
+    }
+
+    async function adminChatMute(username) {
+      const durText = prompt('Dauer der Stummschaltung von ' + username + ' (z. B. 10m, 1h, 24h, 7d, 0 = dauerhaft):', '1h');
+      if (durText === null) return;
+      const secs = parseDuration(durText);
+      if (secs === null) { showChatTip('Ungültige Dauer.'); return; }
+      const token = getToken();
+      if (!token) return;
+      const data = await api('/api/admin/chat/mute', { author: username, duration: secs }, token);
+      if (!data.success) showChatTip(data.error || 'Fehler.');
+      refreshChat();
+    }
+
+    async function adminChatUnmute(username) {
+      const token = getToken();
+      if (!token) return;
+      const data = await api('/api/admin/chat/unmute', { author: username }, token);
+      if (!data.success) showChatTip(data.error || 'Fehler.');
+      refreshChat();
+    }
+
+    let dmTimer = null;
+    let dmThreadTimer = null;
+    let dmThreadFriend = null;
+    let dmLastId = 0;
+
+    function toggleDmOverlay() {
+      const o = document.getElementById('dmOverlay');
+      if (o.classList.contains('show')) closeDmOverlay();
+      else openDmOverlay();
+    }
+
+    function openDmOverlay() {
+      document.getElementById('dmOverlay').classList.add('show');
+      backDmThread();
+      loadDmAll();
+      if (dmTimer) clearInterval(dmTimer);
+      dmTimer = setInterval(loadDmAll, 3000);
+    }
+
+    function closeDmOverlay() {
+      document.getElementById('dmOverlay').classList.remove('show');
+      if (dmTimer) { clearInterval(dmTimer); dmTimer = null; }
+      if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
+    }
+
+    function stopDmTimers() {
+      if (dmTimer) { clearInterval(dmTimer); dmTimer = null; }
+      if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
+      dmThreadFriend = null;
+      dmLastId = 0;
+    }
+
+    function friendAvatarHtml(u) {
+      const color = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      if (u.avatar) return '<img class="c-av" src="' + escapeHtml(u.avatar) + '" alt="">';
+      const initial = (u.alias || u.username || '?').charAt(0).toUpperCase();
+      return '<span class="c-av c-av-ph" style="color:' + color + '">' + escapeHtml(initial) + '</span>';
+    }
+
+    function friendNameHtml(u) {
+      const color = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      const name = u.alias || u.username || '???';
+      const badge = u.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
+      return '<div class="f-line"><span class="f-name" style="color:' + color + '">' + escapeHtml(name) + '</span>' + badge + '</div><div class="f-sub">' + escapeHtml(u.username || '') + '</div>';
+    }
+
+    async function loadDmAll() {
+      const token = getToken();
+      if (!token) return;
+      const friends = await apiGet('/api/friends', token);
+      if (Array.isArray(friends.friends)) {
+        renderFriends(friends);
+        if (!dmThreadFriend) renderConversationFriends(friends.friends);
+      }
+      const conv = await apiGet('/api/dm/conversations', token);
+      if (conv && Array.isArray(conv.conversations)) {
+        updateDmBadge(conv.conversations);
+        if (!dmThreadFriend) renderConversations(conv.conversations);
+      }
+    }
+
+    function renderFriends(data) {
+      document.getElementById('dmRequests').innerHTML =
+        data.incoming && data.incoming.length
+          ? '<h3>Offene Anfragen (' + data.incoming.length + ')</h3>' + data.incoming.map(function (u) {
+              return '<div class="f-row">' + friendAvatarHtml(u) + '<div class="f-info">' + friendNameHtml(u) + '</div>' +
+                '<button class="btn mini ok" onclick="acceptFriend(\'' + escapeAttr(u.username) + '\')">Annehmen</button>' +
+                '<button class="btn mini danger" onclick="declineFriend(\'' + escapeAttr(u.username) + '\')">Ablehnen</button></div>';
+            }).join('')
+          : '';
+      document.getElementById('dmOutgoing').innerHTML =
+        data.outgoing && data.outgoing.length
+          ? '<h3>Gesendete Anfragen</h3>' + data.outgoing.map(function (u) {
+              return '<div class="f-row">' + friendAvatarHtml(u) + '<div class="f-info">' + friendNameHtml(u) + '</div>' +
+                '<button class="btn mini" onclick="withdrawFriend(\'' + escapeAttr(u.username) + '\')">Zurückziehen</button></div>';
+            }).join('')
+          : '';
+    }
+
+    function renderConversationFriends(friends) {
+      const box = document.getElementById('dmFriendsList');
+      if (friends.length) {
+        box.innerHTML = '<h3>Deine Freunde (' + friends.length + ')</h3>' + friends.map(function (u) {
+          return '<div class="f-row">' + friendAvatarHtml(u) + '<div class="f-info">' + friendNameHtml(u) + '</div>' +
+            '<button class="btn mini" title="Privat schreiben" onclick="openDmThread(\'' + escapeAttr(u.username) + '\')">&#128172;</button>' +
+            '<button class="btn mini danger" title="Als Freund entfernen" onclick="removeFriend(\'' + escapeAttr(u.username) + '\')">&#10005;</button></div>';
+        }).join('');
+      } else {
+        box.innerHTML = '<h3>Deine Freunde</h3><div class="empty">Noch keine Freunde – gib oben einen Benutzernamen ein und sende eine Anfrage.</div>';
+      }
+    }
+
+    function renderConversations(convs) {
+      const box = document.getElementById('dmConvList');
+      if (!convs.length) {
+        box.innerHTML = '<h3>Nachrichten</h3><div class="empty">Sobald du Freunde hast, kannst du hier privat schreiben.</div>';
+        return;
+      }
+      box.innerHTML = '<h3>Nachrichten</h3>' + convs.map(function (c) {
+        const color = roleColorMap[c.role] || roleColorMap.member || '#9a6fd8';
+        const name = c.alias || c.username;
+        const badge = c.unread > 0 ? '<span class="badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '';
+        const time = c.last_created ? '<span class="f-time">' + chatTime(c.last_created) + '</span>' : '';
+        return '<div class="f-row conv" onclick="openDmThread(\'' + escapeAttr(c.username) + '\')">' +
+          friendAvatarHtml(c) +
+          '<div class="f-info"><div class="f-line"><span class="f-name" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+          badge + time + '</div>' +
+          '<div class="f-prev">' + escapeHtml(c.last_message || 'Noch keine Nachrichten') + '</div></div></div>';
+      }).join('');
+    }
+
+    function updateDmBadge(convs) {
+      let total = 0;
+      convs.forEach(function (c) { total += (c.unread || 0); });
+      const badge = document.getElementById('dmBadge');
+      if (total > 0) {
+        badge.textContent = total > 9 ? '9+' : total;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    async function addFriend() {
+      const token = getToken();
+      if (!token) return;
+      const username = document.getElementById('friendAddInput').value.trim();
+      if (!username) return;
+      const data = await api('/api/friends/request', { username }, token);
+      const msg = document.getElementById('friendAddMsg');
+      if (data.success) {
+        document.getElementById('friendAddInput').value = '';
+        msg.textContent = 'Anfrage an ' + username + ' gesendet.';
+        msg.className = 'message success';
+      } else {
+        msg.textContent = data.error || 'Fehler.';
+        msg.className = 'message error';
+      }
+      loadDmAll();
+    }
+
+    async function acceptFriend(username) {
+      const token = getToken();
+      if (!token) return;
+      const data = await api('/api/friends/accept', { from: username }, token);
+      if (!data.success && data.error) alert(data.error);
+      loadDmAll();
+    }
+
+    async function declineFriend(username) {
+      const token = getToken();
+      if (!token) return;
+      await api('/api/friends/decline', { from: username }, token);
+      loadDmAll();
+    }
+
+    async function withdrawFriend(username) {
+      const token = getToken();
+      if (!token) return;
+      await api('/api/friends/withdraw', { username }, token);
+      loadDmAll();
+    }
+
+    async function removeFriend(username) {
+      const token = getToken();
+      if (!token) return;
+      await api('/api/friends/remove', { username }, token);
+      loadDmAll();
+    }
+
+    function openDmThread(friend) {
+      dmThreadFriend = friend;
+      dmLastId = 0;
+      document.getElementById('dmListPane').classList.add('hidden');
+      document.getElementById('dmThreadPane').classList.remove('hidden');
+      document.getElementById('dmMsgs').innerHTML = '<div class="empty">Lade…</div>';
+      document.getElementById('dmThreadName').innerHTML = '';
+      pollDmThread();
+      if (dmThreadTimer) clearInterval(dmThreadTimer);
+      dmThreadTimer = setInterval(pollDmThread, 2000);
+    }
+
+    function backDmThread() {
+      dmThreadFriend = null;
+      dmLastId = 0;
+      if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
+      document.getElementById('dmListPane').classList.remove('hidden');
+      document.getElementById('dmThreadPane').classList.add('hidden');
+    }
+
+    async function pollDmThread() {
+      const token = getToken();
+      if (!token || !dmThreadFriend) return;
+      const url = '/api/dm/messages?friend=' + encodeURIComponent(dmThreadFriend) + (dmLastId ? '&after=' + dmLastId : '');
+      const data = await apiGet(url, token);
+      if (!data || !Array.isArray(data.messages)) return;
+      const me = getStoredUser().username;
+      const box = document.getElementById('dmMsgs');
+      if (dmLastId === 0 && data.friend) {
+        const color = roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
+        const name = data.friend.alias || data.friend.username;
+        document.getElementById('dmThreadName').innerHTML =
+          friendAvatarHtml(data.friend) + '<span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+          (data.friend.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
+      }
+      data.messages.forEach(function (m) {
+        if ((m.id || 0) <= dmLastId) return;
+        dmLastId = m.id;
+        const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+        box.insertAdjacentHTML('beforeend', dmMsgHtml(m, m.sender === me));
+        if (nearBottom) box.scrollTop = box.scrollHeight;
+      });
+    }
+
+    function dmMsgHtml(m, isMe) {
+      const color = roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
+      const name = m.sender_alias || m.sender;
+      let meta = '';
+      if (!isMe) {
+        meta = '<div class="cmeta"><span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+          (m.sender_role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
+      }
+      return '<div class="dm-msg ' + (isMe ? 'me' : 'other') + '">' +
+        '<div class="dm-bubble">' + meta +
+        '<div class="dm-text">' + escapeHtml(m.message || '') + '</div>' +
+        '<div class="dm-time">' + chatTime(m.created_at) + '</div></div></div>';
+    }
+
+    async function sendDm() {
+      const token = getToken();
+      if (!token || !dmThreadFriend) return;
+      const input = document.getElementById('dmText');
+      const text = input.value.trim();
+      if (!text) return;
+      const data = await api('/api/dm/send', { to: dmThreadFriend, message: text }, token);
+      if (!data.success) {
+        const tip = document.getElementById('dmTip');
+        tip.setAttribute('data-normal', tip.getAttribute('data-normal') || tip.textContent);
+        tip.textContent = data.error || 'Fehler.';
+        return;
+      }
+      input.value = '';
+      const me = getStoredUser().username;
+      const box = document.getElementById('dmMsgs');
+      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+      box.insertAdjacentHTML('beforeend', dmMsgHtml(data.message, data.message.sender === me));
+      if (nearBottom) box.scrollTop = box.scrollHeight;
     }
 
     function bubbleHtml(post) {
@@ -1199,8 +1634,10 @@
       updateRankPill(user);
       closeAdmin();
       closeProfile();
+      closeDmOverlay();
       loadFeed();
       startChat();
+      document.getElementById('btnFriends').classList.remove('hidden');
     }
 
     function openAdmin() {
@@ -1308,8 +1745,10 @@
       localStorage.removeItem('user');
       closeAdmin();
       closeProfile();
+      closeDmOverlay();
       stopChatPolling();
       hideChat();
+      document.getElementById('btnFriends').classList.add('hidden');
       document.getElementById('main').classList.remove('active');
       document.getElementById('loginCard').classList.remove('hidden');
       window.scrollTo(0, 0);
