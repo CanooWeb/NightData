@@ -1525,7 +1525,7 @@
       if (!badge) return;
       const role = (u.role || 'member').toLowerCase();
       const glow = glowColorOf(u);
-      const color = glow || roleColorMap[role] || roleColorMap.member || '#9a6fd8';
+      const color = roleColorMap[role] || roleColorMap.member || '#9a6fd8';
       badge.textContent = role.toUpperCase();
       badge.style.color = color;
       badge.style.borderColor = color;
@@ -1614,7 +1614,7 @@
         const joined = c.members.some(function (m) { return m.username === me; });
         const action = joined ? '<button class="btn mini danger" onclick="leaveVoiceChannel()">Verlassen</button>' + '<button class="btn mini" onclick="toggleVoiceMute()">' + (voiceMuted ? 'Mikro an' : 'Stumm') + '</button>' : '<button class="btn mini ok" onclick="joinVoiceChannel(' + c.id + ')">Beitreten</button>';
         const owner = c.owner === me ? '<button class="btn mini danger" onclick="closeVoiceChannel(' + c.id + ')">Schließen</button>' : '';
-        const members = c.members.map(function (m) { const glow = glowColorOf(m); const color = glow || roleColorMap[m.role] || roleColorMap.member || '#9a6fd8'; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt="" style="box-shadow:0 0 8px ' + color + '">' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + color + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + glowTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span></span>'; }).join('');
+        const members = c.members.map(function (m) { const glow = glowColorOf(m); const roleColor = roleColorMap[m.role] || roleColorMap.member || '#9a6fd8'; const color = glow || roleColor; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt="" style="box-shadow:0 0 8px ' + color + '">' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + color + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + glowTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role" style="color:' + roleColor + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span></span>'; }).join('');
         return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + (c.is_open ? 'OFFEN' : 'GESCHLOSSEN') + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div><div class="voice-members">' + (members || '<span class="voice-member">Noch niemand</span>') + '</div></div>' + action + owner + '</div>';
       }).join('') : '<div class="empty">Noch keine Sprachkanäle.</div>';
     }
@@ -1700,11 +1700,12 @@
       const name = m.alias || m.author || '???';
       const glow = glowColorOf(m);
       const color = glow || roleColorMap[m.role] || roleColorMap.member || '#9a6fd8';
+      const roleColor = roleColorMap[m.role] || roleColorMap.member || '#9a6fd8';
       const avRing = glow ? ' style="box-shadow:0 0 12px ' + glow + '"' : '';
       const av = m.avatar
         ? '<img class="c-av" src="' + escapeHtml(m.avatar) + '" alt=""' + avRing + '>'
         : '<span class="c-av c-av-ph" style="color:' + color + '">' + escapeHtml((name[0] || '?').toUpperCase()) + '</span>';
-      const role = m.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '';
+       const role = m.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '';
       const mutedTag = m.muted_until ? '<span class="c-role muted-tag" style="color:#ff5252;border-color:#ff5252">STUMM</span>' : '';
       let actions = '';
       if (chatIsStaff() && String(m.author) !== String(getStoredUser().username || '')) {
@@ -2186,6 +2187,7 @@
     function friendAvatarHtml(u) {
       const glow = glowColorOf(u);
       const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      const roleColor = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       if (u.avatar) {
         const ring = glow ? ' style="box-shadow:0 0 10px ' + glow + '"' : '';
         return '<img class="c-av" src="' + escapeHtml(u.avatar) + '" alt=""' + ring + '>';
@@ -2198,7 +2200,7 @@
       const glow = glowColorOf(u);
       const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       const name = u.alias || u.username || '???';
-      const badge = u.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
+       const badge = u.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
        return '<div class="f-line"><span class="f-name" style="' + glowTextCss(u, color) + '">' + escapeHtml(name) + '</span>' + badge + '</div><div class="f-sub">' + escapeHtml(u.username || '') + '</div>';
     }
 
@@ -2357,11 +2359,12 @@
     function dmMsgHtml(m, isMe) {
       const glow = glowColorOf(m);
       const color = glow || roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
+      const roleColor = roleColorMap[m.sender_role] || roleColorMap.member || '#9a6fd8';
       const name = m.sender_alias || m.sender;
       let meta = '';
       if (!isMe) {
          meta = '<div class="cmeta"><span class="cname" style="' + glowTextCss(m, color) + '">' + escapeHtml(name) + '</span>' +
-          (m.sender_role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
+           (m.sender_role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
       }
       const receipt = isMe
         ? '<span class="dm-receipt' + (m.read ? ' read' : '') + '" title="' + (m.read ? 'Gelesen' : 'Gesendet') + '">' + (m.read ? '&#10003;&#10003;' : '&#10003;') + '</span>'
@@ -2391,10 +2394,11 @@
       if (dmLastId === 0 && data.friend) {
         const fGlow = cosmeticColorById(data.friend.glow_item);
         const color = fGlow || roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
+        const roleColor = roleColorMap[data.friend.role] || roleColorMap.member || '#9a6fd8';
         const name = data.friend.alias || data.friend.username;
         document.getElementById('dmThreadName').innerHTML =
            friendAvatarHtml(data.friend) + '<span class="cname" style="' + glowTextCss(data.friend, color) + '">' + escapeHtml(name) + '</span>' +
-          (data.friend.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
+           (data.friend.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
       }
       if (dmLastId === 0) box.innerHTML = '';
       data.messages.forEach(function (m) {
@@ -2590,12 +2594,13 @@
       box.style.boxShadow = '0 16px 50px rgba(0,0,0,0.6), 0 0 22px ' + frame + '88';
       const avRing = glow ? ' style="box-shadow:0 0 18px ' + glow + '"' : '';
       const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      const roleColor = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       wrap.innerHTML = u.avatar
         ? '<img class="up-avatar" src="' + escapeHtml(u.avatar) + '" alt=""' + avRing + '>'
         : '<span class="up-avatar-ph" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(((u.alias || u.username || '?').charAt(0)).toUpperCase()) + '</span>';
       document.getElementById('upName').innerHTML =
          '<span style="' + glowTextCss(u, color) + '">' + escapeHtml(u.alias || u.username) + '</span>' +
-        (u.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + ';margin-left:8px;font-size:11px;">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '');
+         (u.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + ';margin-left:8px;font-size:11px;">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '');
       document.getElementById('upUsername').textContent = '@' + u.username;
       document.getElementById('upBio').textContent = u.bio || '';
       document.getElementById('upBio').style.display = u.bio ? '' : 'none';
