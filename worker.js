@@ -89,6 +89,9 @@ export default {
       if (url.pathname === '/api/dm/send' && request.method === 'POST') {
         return await handleDmSend(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/users/profile' && request.method === 'GET') {
+        return await handleUserInfo(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
       }
@@ -841,6 +844,36 @@ async function handleDmSend(request, env, corsHeaders) {
   const result = await env.DB.prepare('INSERT INTO dm_messages (sender, recipient, message) VALUES (?, ?, ?)').bind(me, to, message).run();
   const msg = (await env.DB.prepare(DM_JOIN + ' WHERE m.id = ?').bind(result.meta.last_row_id).first());
   return json({ success: true, message: msg }, 201, corsHeaders);
+}
+
+async function handleUserInfo(request, env, corsHeaders) {
+  const me = await getAuthUser(request, env);
+  if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const username = String(new URL(request.url).searchParams.get('username') || '').trim();
+  if (!username) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+
+  const u = await env.DB.prepare('SELECT username, avatar, alias, bio, games, role FROM users WHERE username = ?').bind(username).first();
+  if (!u) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+
+  const postsCount = (await env.DB.prepare("SELECT COUNT(*) AS c FROM posts WHERE author = ?").bind(username).first()).c || 0;
+  const ticketsCount = (await env.DB.prepare("SELECT COUNT(*) AS c FROM discord_tickets WHERE author = ?").bind(username).first()).c || 0;
+
+  const f = await env.DB.prepare('SELECT id FROM friends WHERE (user_a = ? AND user_b = ?) OR (user_a = ? AND user_b = ?)').bind(me.username, username, username, me.username).first();
+  let friendStatus = 'none';
+  if (f) {
+    friendStatus = 'friend';
+  } else {
+    const inc = await env.DB.prepare('SELECT id FROM friend_requests WHERE from_user = ? AND to_user = ?').bind(username, me.username).first();
+    const out = await env.DB.prepare('SELECT id FROM friend_requests WHERE from_user = ? AND to_user = ?').bind(me.username, username).first();
+    if (inc) friendStatus = 'incoming';
+    else if (out) friendStatus = 'outgoing';
+  }
+
+  return json({
+    user: { username: u.username, avatar: u.avatar, alias: u.alias, bio: u.bio || '', games: u.games || '', role: u.role },
+    postsCount, ticketsCount, friendStatus
+  }, 200, corsHeaders);
 }
 
 async function handleFeed(request, env, corsHeaders, settings) {

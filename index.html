@@ -425,8 +425,15 @@
     .chatmin:hover { box-shadow: 0 0 16px rgba(139,63,240,0.45); }
 
     .floatui-friends {
-      position: absolute; bottom: 18px; right: 96px; pointer-events: auto;
-      box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+      position: fixed; right: 120px; width: 116px; z-index: 8;
+      top: calc(50% + min(31vh, 270px) + 12px); transform: translateY(-50%);
+      pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+    }
+    @media (max-width: 700px) {
+      .floatui-friends {
+        right: 10px; left: 10px; width: auto; top: auto; transform: none;
+        bottom: calc(12px + 45vh + 10px);
+      }
     }
     .badge {
       display: inline-block; background: #ff5252; color: #fff; border-radius: 999px;
@@ -497,6 +504,40 @@
     }
     .c-btn:hover { color: #e3c9ff; box-shadow: 0 0 8px rgba(139,63,240,0.4); }
     .muted-tag { background: rgba(255,82,82,0.12); }
+
+    .cname-link { cursor: pointer; border-bottom: 1px dashed rgba(139,63,240,0.5); transition: filter .2s; }
+    .cname-link:hover { filter: brightness(1.5); }
+
+    .userpopup {
+      position: fixed; inset: 0; z-index: 31; display: none; overflow-y: auto;
+      padding: 24px 16px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px);
+    }
+    .userpopup.show { display: block; }
+    .userpopup .shell { max-width: 480px; margin: 0 auto; }
+    .userpopup .card {
+      background: rgba(12,14,24,0.95); border: 1px solid rgba(139,63,240,0.45); border-radius: 16px;
+      padding: 24px; box-shadow: 0 16px 50px rgba(0,0,0,0.6); text-align: center;
+    }
+    .userpopup .up-avatar {
+      width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(139,63,240,0.6); box-shadow: 0 0 18px rgba(139,63,240,0.35);
+    }
+    .userpopup .up-avatar-ph {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 110px; height: 110px; border-radius: 50%;
+      background: rgba(139,63,240,0.18); border: 2px solid rgba(139,63,240,0.6);
+      font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 40px;
+    }
+    .userpopup .up-name {
+      font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 1px; margin-top: 14px;
+    }
+    .userpopup .up-username { font-family: 'Share Tech Mono',monospace; font-size: 13px; color: #7d6a9d; margin-top: 2px; }
+    .userpopup .up-bio { font-size: 13px; color: #d9cdf2; line-height: 1.5; margin: 14px 0; white-space: pre-wrap; }
+    .userpopup .up-stats { color: #7ae0e0; font-family: 'Share Tech Mono',monospace; letter-spacing: 1px; font-size: 13px; margin-bottom: 12px; }
+    .userpopup .up-games { margin-bottom: 8px; }
+    .userpopup .up-actions { margin-top: 16px; }
+    .userpopup .games-chip { margin: 4px 4px 0 0; }
+    .up-msg { margin-top: 10px; }
 
     @media (max-width: 700px) {
       .chatpanel { right: 10px; left: 10px; width: auto; height: 45vh; top: auto; bottom: 12px; }
@@ -894,6 +935,22 @@
     </div>
   </div>
 
+  <div class="userpopup" id="userPopup">
+    <div class="shell">
+      <div class="card" id="userPopupCard">
+        <div class="up-avatar-wrap" id="upAvatarWrap"></div>
+        <div class="up-name" id="upName"></div>
+        <div class="up-username" id="upUsername"></div>
+        <div class="up-bio" id="upBio"></div>
+        <div class="up-stats" id="upStats"></div>
+        <div class="up-games" id="upGames"></div>
+        <div class="up-actions" id="upActions"></div>
+        <div id="upMsg" class="message up-msg"></div>
+        <button class="btn danger" style="margin-top:16px;" onclick="closeUserPopup()">Schließen</button>
+      </div>
+    </div>
+  </div>
+
   <div class="chatpanel" id="chatPanel">
     <div class="chat-head">
       <span class="live-dot"></span>
@@ -986,6 +1043,7 @@
           document.getElementById('profileOverlay').classList.remove('show');
           document.getElementById('dmOverlay').classList.remove('show');
           closeDmOverlay();
+          closeUserPopup();
         }
         let blocked = blockedKeys.includes(k);
         if (!blocked) {
@@ -1173,7 +1231,7 @@
           '</div>';
       }
       return '<div class="cmsg" data-mid="' + m.id + '">' + av +
-        '<div class="cbody"><div class="cmeta"><span class="cname" style="color:' + color + '">' + escapeHtml(name) + '</span>' +
+        '<div class="cbody"><div class="cmeta"><span class="cname cname-link" style="color:' + color + '" onclick="openUserPopup(\'' + escapeAttr(m.author) + '\')" title="Profil ansehen">' + escapeHtml(name) + '</span>' +
         role + mutedTag + '<span class="ctime">' + chatTime(m.created_at) + '</span></div>' +
         '<div class="ctext">' + escapeHtml(m.message || '') + '</div>' +
         actions + '</div></div>';
@@ -1544,6 +1602,99 @@
       const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
       box.insertAdjacentHTML('beforeend', dmMsgHtml(data.message, data.message.sender === me));
       if (nearBottom) box.scrollTop = box.scrollHeight;
+    }
+
+    let userPopupName = null;
+
+    async function openUserPopup(username) {
+      userPopupName = username;
+      document.getElementById('userPopup').classList.add('show');
+      renderUserPopup(null, true);
+      const token = getToken();
+      if (!token) { closeUserPopup(); return; }
+      const data = await apiGet('/api/users/profile?username=' + encodeURIComponent(username), token);
+      if (!data || !data.user) {
+        if (data && (data.error === 'Nicht angemeldet.' || data.error === 'Konto gesperrt.')) { doLogout(); closeUserPopup(); return; }
+        renderUserPopup(null, false);
+        return;
+      }
+      renderUserPopup(data, false);
+    }
+
+    function renderUserPopup(data, loading) {
+      const wrap = document.getElementById('upAvatarWrap');
+      const box = document.getElementById('userPopupCard');
+      document.getElementById('upActions').innerHTML = '';
+      document.getElementById('upMsg').className = 'message up-msg';
+      document.getElementById('upMsg').textContent = '';
+      if (loading || !data || !data.user) {
+        const color = '#9a6fd8';
+        wrap.innerHTML = '<span class="up-avatar-ph" style="color:' + color + ';border-color:' + color + '">?</span>';
+        document.getElementById('upName').innerHTML = '<span class="ctext">' + (loading ? 'Lade…' : 'Benutzer nicht gefunden.') + '</span>';
+        document.getElementById('upUsername').textContent = '@' + (userPopupName || '');
+        document.getElementById('upBio').textContent = '';
+        document.getElementById('upBio').style.display = 'none';
+        document.getElementById('upStats').textContent = '';
+        document.getElementById('upGames').innerHTML = '';
+        box.style.opacity = '';
+        return;
+      }
+      const u = data.user;
+      const color = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      wrap.innerHTML = u.avatar
+        ? '<img class="up-avatar" src="' + escapeHtml(u.avatar) + '" alt="">'
+        : '<span class="up-avatar-ph" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(((u.alias || u.username || '?').charAt(0)).toUpperCase()) + '</span>';
+      document.getElementById('upName').innerHTML =
+        '<span style="color:' + color + '">' + escapeHtml(u.alias || u.username) + '</span>' +
+        (u.role ? '<span class="c-role" style="color:' + color + ';border-color:' + color + ';margin-left:8px;font-size:11px;">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '');
+      document.getElementById('upUsername').textContent = '@' + u.username;
+      document.getElementById('upBio').textContent = u.bio || '';
+      document.getElementById('upBio').style.display = u.bio ? '' : 'none';
+      document.getElementById('upStats').textContent = 'Beiträge: ' + data.postsCount + '  ·  Tickets: ' + data.ticketsCount;
+      const games = String(u.games || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 8);
+      document.getElementById('upGames').innerHTML = games.length ? games.map(function (g) { return '<span class="games-chip">' + escapeHtml(g) + '</span>'; }).join('') : '';
+      box.style.opacity = '';
+      if (u.username !== String(getStoredUser().username || '')) {
+        renderUserPopupActions(data.friendStatus);
+      }
+    }
+
+    function renderUserPopupActions(status) {
+      const box = document.getElementById('upActions');
+      if (status === 'friend') {
+        box.innerHTML = '<button class="btn mini danger" onclick="userPopupAction(\'remove\')">Freund entfernen</button>';
+      } else if (status === 'outgoing') {
+        box.innerHTML = '<button class="btn mini" onclick="userPopupAction(\'withdraw\')">Anfrage zurückziehen</button>';
+      } else if (status === 'incoming') {
+        box.innerHTML = '<button class="btn mini ok" onclick="userPopupAction(\'accept\')">Anfrage annehmen</button>';
+      } else {
+        box.innerHTML = '<button class="btn mini ok" onclick="userPopupAction(\'add\')">Als Freund hinzufügen</button>';
+      }
+    }
+
+    async function userPopupAction(action) {
+      const token = getToken();
+      if (!token || !userPopupName) return;
+      const isFrom = action === 'accept';
+      const endpoint = action === 'add' ? 'request' : action === 'accept' ? 'accept' : action === 'withdraw' ? 'withdraw' : 'remove';
+      const body = isFrom ? { from: userPopupName } : { username: userPopupName };
+      const data = await api('/api/friends/' + endpoint, body, token);
+      const msg = document.getElementById('upMsg');
+      if (data.success) {
+        const text = { add: 'Anfrage gesendet.', withdraw: 'Anfrage zurückgezogen.', remove: 'Freund entfernt.', accept: 'Anfrage angenommen.' }[action];
+        msg.textContent = text || 'Ok.';
+        msg.className = 'message success up-msg';
+        loadDmAll();
+        openUserPopup(userPopupName);
+      } else {
+        msg.textContent = data.error || 'Fehler.';
+        msg.className = 'message error up-msg';
+      }
+    }
+
+    function closeUserPopup() {
+      document.getElementById('userPopup').classList.remove('show');
+      userPopupName = null;
     }
 
     function bubbleHtml(post) {
