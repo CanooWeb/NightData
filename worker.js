@@ -1356,7 +1356,7 @@ async function handleMarketCancel(request, env, corsHeaders) {
 async function voiceUser(request, env) { return getAuthUser(request, env); }
 async function voiceBody(request) { try { return await request.json(); } catch (e) { return {}; } }
 async function voiceMembers(env, channelId) {
-  return (await env.DB.prepare('SELECT username, joined_at FROM voice_members WHERE channel_id = ? ORDER BY joined_at').bind(channelId).all()).results;
+  return (await env.DB.prepare('SELECT vm.username, vm.joined_at, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM voice_members vm LEFT JOIN users u ON u.username = vm.username WHERE vm.channel_id = ? ORDER BY vm.joined_at').bind(channelId).all()).results;
 }
 async function handleVoiceGet(request, env, corsHeaders) {
   const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);

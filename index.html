@@ -487,6 +487,9 @@
     .voice-members { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
     .voice-member { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 4px 7px; border: 1px solid rgba(122,224,224,.25); border-radius: 6px; color: #b9a8d8; font: 10px 'Share Tech Mono',monospace; }
     .voice-member.me { color: #7ae0e0; border-color: rgba(122,224,224,.6); }
+    .voice-member-head { display: flex; align-items: center; gap: 5px; }
+    .voice-member-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(139,63,240,.5); }
+    .voice-member-role { color: #9a6fd8; font-size: 8px; letter-spacing: .5px; }
     .voice-bars { display: inline-flex; align-items: center; gap: 2px; height: 11px; margin-left: 4px; vertical-align: -2px; opacity: .35; }
     .voice-bars span { width: 2px; height: 3px; border-radius: 2px; background: #7ae0e0; transition: height .12s ease, opacity .12s ease; }
     .voice-bars.speaking { opacity: 1; }
@@ -1610,7 +1613,7 @@
         const joined = c.members.some(function (m) { return m.username === me; });
         const action = joined ? '<button class="btn mini danger" onclick="leaveVoiceChannel()">Verlassen</button>' + '<button class="btn mini" onclick="toggleVoiceMute()">' + (voiceMuted ? 'Mikro an' : 'Stumm') + '</button>' : '<button class="btn mini ok" onclick="joinVoiceChannel(' + c.id + ')">Beitreten</button>';
         const owner = c.owner === me ? '<button class="btn mini danger" onclick="closeVoiceChannel(' + c.id + ')">Schließen</button>' : '';
-        const members = c.members.map(function (m) { return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span></span>'; }).join('');
+        const members = c.members.map(function (m) { const glow = glowColorOf(m); const color = glow || roleColorMap[m.role] || roleColorMap.member || '#9a6fd8'; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt="" style="box-shadow:0 0 8px ' + color + '">' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + color + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + glowTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span></span>'; }).join('');
         return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + (c.is_open ? 'OFFEN' : 'GESCHLOSSEN') + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div><div class="voice-members">' + (members || '<span class="voice-member">Noch niemand</span>') + '</div></div>' + action + owner + '</div>';
       }).join('') : '<div class="empty">Noch keine Sprachkanäle.</div>';
     }
