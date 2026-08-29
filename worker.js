@@ -38,6 +38,12 @@ export default {
       if (url.pathname === '/api/me' && request.method === 'GET') {
         return await handleMe(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/profile' && request.method === 'GET') {
+        return await handleProfileGet(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/profile' && request.method === 'POST') {
+        return await handleProfileUpdate(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
       }
@@ -167,6 +173,10 @@ async function ensureSchema(env) {
   `).run();
   await env.DB.prepare(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE users ADD COLUMN avatar TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE users ADD COLUMN alias TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE users ADD COLUMN bio TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE users ADD COLUMN games TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE posts ADD COLUMN expires_at TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE security_logs ADD COLUMN ipv4 TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE security_logs ADD COLUMN ipv6 TEXT`).run().catch(() => {});
@@ -233,7 +243,7 @@ async function getAuthUser(request, env) {
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
   if (!session) return null;
 
-  const user = await env.DB.prepare('SELECT id, username, role, banned FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user || user.banned) return null;
 
   return user;
@@ -331,11 +341,52 @@ async function handleMe(request, env, corsHeaders) {
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
   if (!session) return json({ error: 'Sitzung ungültig oder abgelaufen.' }, 401, corsHeaders);
 
-  const user = await env.DB.prepare('SELECT id, username, role, banned FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user) return json({ error: 'Benutzer nicht gefunden.' }, 401, corsHeaders);
   if (user.banned) return json({ error: 'Konto gesperrt.' }, 403, corsHeaders);
 
-  return json({ success: true, user }, 200, corsHeaders);
+  const postsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM posts WHERE author = ?').bind(user.username).first()).n;
+  const ticketsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM discord_tickets WHERE author = ?').bind(user.username).first()).n;
+
+  return json({ success: true, user, postsCount, ticketsCount }, 200, corsHeaders);
+}
+
+async function handleProfileGet(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const postsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM posts WHERE author = ?').bind(user.username).first()).n;
+  const ticketsCount = (await env.DB.prepare('SELECT COUNT(*) AS n FROM discord_tickets WHERE author = ?').bind(user.username).first()).n;
+
+  return json({ success: true, user, postsCount, ticketsCount }, 200, corsHeaders);
+}
+
+async function handleProfileUpdate(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+
+  let avatar = String(body.avatar || '').trim();
+  let alias = String(body.alias || '').trim();
+  const bio = String(body.bio || '').trim();
+  let games = Array.isArray(body.games) ? body.games : String(body.games || '');
+  if (Array.isArray(games)) games = games.map(g => String(g).trim().slice(0, 40)).filter(Boolean);
+  else games = String(games).split('\n').map(g => g.trim()).filter(Boolean);
+  games = Array.from(new Set(games)).slice(0, 8).join('\n');
+
+  if (avatar && !/^https:\/\/\S+$/.test(avatar)) avatar = '';
+  avatar = avatar.slice(0, 300);
+  alias = alias.slice(0, 32);
+  if (bio.length > 500) return json({ error: 'Bio darf maximal 500 Zeichen haben.' }, 400, corsHeaders);
+  if (games.length > 500) return json({ error: 'Zu viele Games angegeben.' }, 400, corsHeaders);
+
+  await env.DB.prepare('UPDATE users SET avatar = ?, alias = ?, bio = ?, games = ? WHERE id = ?')
+    .bind(avatar || null, alias || null, bio || null, games || null, user.id).run();
+
+  const updated = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role FROM users WHERE id = ?').bind(user.id).first();
+  return json({ success: true, user: updated }, 200, corsHeaders);
 }
 
 async function handleFeed(request, env, corsHeaders, settings) {

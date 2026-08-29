@@ -328,6 +328,34 @@
     .floatui .floatui-admin {
       position: absolute; bottom: 18px; right: 18px; pointer-events: auto;
     }
+    .rankavatar {
+      width: 26px; height: 26px; border-radius: 50%; object-fit: cover;
+      border: 1px solid rgba(139,63,240,0.5); flex-shrink: 0;
+    }
+    .profile-gear {
+      background: transparent; border: 1px solid rgba(139,63,240,0.4); color: #b18bf0;
+      border-radius: 8px; padding: 3px 7px; cursor: pointer; font-size: 13px; line-height: 1;
+      margin-left: 2px; transition: all .25s;
+    }
+    .profile-gear:hover { color: #e3c9ff; box-shadow: 0 0 8px rgba(139,63,240,0.4); }
+
+    .profileoverlay {
+      position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto;
+      padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px);
+    }
+    .profileoverlay.show { display: block; }
+    .profileoverlay .shell { max-width: 640px; margin: 0 auto; }
+    .profile-avatar {
+      width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(139,63,240,0.6); box-shadow: 0 0 18px rgba(139,63,240,0.35);
+    }
+    .prof-avatar-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .games-chip {
+      display: inline-block; background: rgba(139,63,240,0.15); border: 1px solid rgba(139,63,240,0.45);
+      color: #c9b3f0; padding: 4px 12px; border-radius: 999px; font-size: 11px; margin: 5px 5px 0 0;
+      font-family: 'Share Tech Mono',monospace; letter-spacing: 1px;
+    }
+    .prof-stats { color: #7ae0e0; font-family: 'Share Tech Mono',monospace; letter-spacing: 1px; font-size: 14px; margin-bottom: 8px; }
 
     .adminoverlay {
       position: fixed; inset: 0; z-index: 20; display: none; overflow-y: auto;
@@ -456,8 +484,10 @@
 
   <div class="floatui hidden" id="floatui">
     <div class="rankpill" id="rankPill">
+      <img id="rankAvatar" class="rankavatar hidden" alt="">
       <span id="topUsername">—</span>
       <span class="role-badge" id="topRole">LIMITED</span>
+      <button class="profile-gear" onclick="openProfile()" title="Profil bearbeiten">⚙</button>
     </div>
     <button class="btn ok adminonly floatui-admin" id="btnAdmin" onclick="openAdmin()">◈ Admin</button>
     <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
@@ -633,6 +663,46 @@
     </div>
   </div>
 
+  <div class="profileoverlay" id="profileOverlay">
+    <div class="shell">
+      <div class="admin-head">
+        <div class="brand">◈ PROFIL</div>
+        <button class="btn danger" onclick="closeProfile()">Schließen</button>
+      </div>
+      <div class="panel" id="profilePanel">
+        <div class="panel-head">
+          <h2>Mein Profil</h2>
+          <span class="live">● BEARBEITEN</span>
+        </div>
+        <div class="panel-body prof-body">
+          <div class="prof-avatar-wrap">
+            <img id="prof-avatar-preview" class="profile-avatar hidden" alt="">
+            <label class="btn mini">Bild wählen <input type="file" id="prof-avatar-file" accept="image/*" hidden onchange="previewProfileAvatar()"></label>
+          </div>
+          <div class="form-group">
+            <label>Statistiken</label>
+            <div id="prof-stats" class="prof-stats">Lade…</div>
+          </div>
+          <div class="form-group">
+            <label for="prof-alias">Alias / Anzeigename</label>
+            <input type="text" id="prof-alias" maxlength="32" placeholder="z.B. NoxxZ">
+          </div>
+          <div class="form-group">
+            <label for="prof-bio">Bio</label>
+            <textarea id="prof-bio" maxlength="500" placeholder="Über dich …" rows="4"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="prof-games">Games (eine pro Zeile)</label>
+            <textarea id="prof-games" maxlength="500" placeholder="z.B.&NewLine;GTA RP (FiveM)&NewLine;Valorant" rows="3"></textarea>
+            <div id="prof-games-chips"></div>
+          </div>
+          <button type="submit" id="btnSaveProfile" onclick="saveProfile()">Profil speichern</button>
+          <div id="prof-msg" class="message"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       const blockedKeys = ['f12'];
@@ -707,6 +777,7 @@
         if (k === 'escape') {
           document.getElementById('adminOverlay').classList.remove('show');
           document.getElementById('main').classList.remove('blur');
+          document.getElementById('profileOverlay').classList.remove('show');
         }
         let blocked = blockedKeys.includes(k);
         if (!blocked) {
@@ -837,6 +908,20 @@
       badge.style.textShadow = '0 0 8px ' + color;
     }
 
+    function updateRankPill(user) {
+      const u = user || getStoredUser();
+      document.getElementById('topUsername').textContent = escapeHtml((u.alias || u.username || '—')).toUpperCase();
+      const av = document.getElementById('rankAvatar');
+      if (u.avatar) {
+        av.src = u.avatar;
+        av.classList.remove('hidden');
+      } else {
+        av.classList.add('hidden');
+        av.removeAttribute('src');
+      }
+      applyBadgeColor(u);
+    }
+
     function bubbleHtml(post) {
       const media = post.file_key ? '<img src="' + escapeHtml(post.file_key) + '" alt="Bild" loading="lazy">' : '';
       return '<div class="bubble">' +
@@ -920,11 +1005,11 @@
       document.getElementById('loginCard').classList.add('hidden');
       document.getElementById('main').classList.add('active');
       document.getElementById('floatui').classList.remove('hidden');
-      document.getElementById('topUsername').textContent = escapeHtml(user.username).toUpperCase();
       const isStaff = user.role === 'founder' || user.role === 'admin' || user.role === 'moderator';
       document.getElementById('btnAdmin').classList.toggle('show', isStaff);
-      applyBadgeColor(user);
+      updateRankPill(user);
       closeAdmin();
+      closeProfile();
       loadFeed();
     }
 
@@ -943,6 +1028,84 @@
     function closeAdmin() {
       document.getElementById('adminOverlay').classList.remove('show');
       document.getElementById('main').classList.remove('blur');
+    }
+
+    function openProfile() {
+      document.getElementById('profileOverlay').classList.add('show');
+      loadProfile();
+    }
+
+    function closeProfile() {
+      document.getElementById('profileOverlay').classList.remove('show');
+    }
+
+    function previewProfileAvatar() {
+      const input = document.getElementById('prof-avatar-file');
+      const preview = document.getElementById('prof-avatar-preview');
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { showMessage('prof-msg', 'Nur Bilddateien.', 'error'); input.value = ''; return; }
+      if (file.size > maxImageMb * 1024 * 1024) { showMessage('prof-msg', 'Maximal ' + maxImageMb + ' MB pro Bild.', 'error'); input.value = ''; return; }
+      preview.src = URL.createObjectURL(file);
+      preview.classList.remove('hidden');
+    }
+
+    function renderGamesChips(text) {
+      const games = String(text || '').split('\n').map(s => s.trim()).filter(Boolean);
+      document.getElementById('prof-games-chips').innerHTML = games.slice(0, 8).map(g => '<span class="games-chip">' + escapeHtml(g) + '</span>').join('');
+    }
+
+    async function loadProfile() {
+      const token = getToken();
+      if (!token) return;
+      const data = await apiGet('/api/profile', token);
+      if (!data.user) { if (data.error === 'Nicht angemeldet.' || data.error === 'Konto gesperrt.') doLogout(); return; }
+      const u = data.user;
+      document.getElementById('prof-alias').value = u.alias || '';
+      document.getElementById('prof-bio').value = u.bio || '';
+      document.getElementById('prof-games').value = (u.games || '').split('\n').filter(Boolean).join('\n');
+      renderGamesChips(u.games);
+      document.getElementById('prof-stats').innerHTML =
+        'Beiträge: ' + (data.postsCount || 0) + '  ·  Tickets: ' + (data.ticketsCount || 0);
+      const prev = document.getElementById('prof-avatar-preview');
+      if (u.avatar) {
+        prev.src = u.avatar;
+        prev.classList.remove('hidden');
+        prev.setAttribute('data-current', u.avatar);
+      } else {
+        prev.classList.add('hidden');
+        prev.removeAttribute('src');
+        prev.removeAttribute('data-current');
+      }
+      updateRankPill(u);
+    }
+
+    async function saveProfile() {
+      const token = getToken();
+      if (!token) { doLogout(); return; }
+      const file = document.getElementById('prof-avatar-file').files && document.getElementById('prof-avatar-file').files[0];
+      let avatar = document.getElementById('prof-avatar-preview').getAttribute('data-current') || '';
+      if (file) {
+        const up = await uploadImage(file, token);
+        if (!up) { showMessage('prof-msg', 'Bild-Upload fehlgeschlagen.', 'error'); return; }
+        avatar = up;
+      }
+      const alias = document.getElementById('prof-alias').value.trim();
+      const bio = document.getElementById('prof-bio').value.trim();
+      const games = document.getElementById('prof-games').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+      const data = await api('/api/profile', { avatar, alias, bio, games }, token);
+      if (!data.success) { showMessage('prof-msg', data.error || 'Fehler.', 'error'); return; }
+      const u = getStoredUser();
+      u.avatar = data.user.avatar || '';
+      u.alias = data.user.alias || '';
+      u.bio = data.user.bio || '';
+      u.games = data.user.games || '';
+      localStorage.setItem('user', JSON.stringify(u));
+      updateRankPill(u);
+      document.getElementById('prof-avatar-file').value = '';
+      renderGamesChips(data.user.games);
+      showMessage('prof-msg', 'Profil gespeichert.', 'success');
+      loadFeed();
     }
 
     function loadFeedAutomatic() {
@@ -1292,6 +1455,10 @@
       previewFile('ann-file', 'ann-preview', 'ann-form-msg');
     });
 
+    document.getElementById('prof-games').addEventListener('input', function () {
+      renderGamesChips(this.value);
+    });
+
     async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('login-username').value.trim();
@@ -1303,7 +1470,13 @@
         document.getElementById('login-password').value = '';
         document.getElementById('login-username').value = '';
         showTab('login');
-        switchToMain({ id: data.user.id, username: data.user.username, role: data.user.role || 'member' });
+        const me = await apiGet('/api/me', data.token);
+        if (me.success && me.user) {
+          localStorage.setItem('user', JSON.stringify(me.user));
+          switchToMain(me.user);
+        } else {
+          switchToMain({ id: data.user.id, username: data.user.username, role: data.user.role || 'member' });
+        }
       } else {
         showMessage('login-message', data.error || 'Anmeldung fehlgeschlagen.', 'error');
       }
