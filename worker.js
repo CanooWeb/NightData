@@ -22,7 +22,7 @@ const COSMETIC_ITEMS = [
   { id: 'theme_ember',  cat: 'color', label: 'Glut-Kiste',       v: '#ff9e5e', rarity: 'legendary' }
 ];
 
-const RARITY_WEIGHT = { common: 60, rare: 25, epic: 11, legendary: 4 };
+const RARITY_WEIGHT = { common: 35, rare: 35, epic: 22, legendary: 8 };
 const RARITY_LABEL = { common: 'Gewöhnlich', rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
 
 function cosmeticById(id) {
@@ -380,6 +380,7 @@ async function ensureSchema(env) {
       UNIQUE(username, item_id)
     )
   `).run();
+  await env.DB.prepare('ALTER TABLE inventory ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1').run().catch(() => {});
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS chest_opens (
       username TEXT PRIMARY KEY,
@@ -1047,7 +1048,9 @@ async function handleChestStatus(request, env, corsHeaders) {
   const now = Date.now();
   const canOpen = !lastMs || now - lastMs >= CHEST_COOLDOWN_MS;
 
-  const owned = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results.map(r => r.item_id);
+  const ownedRows = (await env.DB.prepare('SELECT item_id, quantity FROM inventory WHERE username = ?').bind(me.username).all()).results;
+  const owned = ownedRows.map(r => r.item_id);
+  const ownedCounts = Object.fromEntries(ownedRows.map(r => [r.item_id, Number(r.quantity) || 1]));
   const creditRow = await env.DB.prepare('SELECT credits FROM chest_credits WHERE username = ?').bind(me.username).first();
   const giftedChests = Math.max(Number(creditRow?.credits) || 0, 0);
 
@@ -1059,6 +1062,7 @@ async function handleChestStatus(request, env, corsHeaders) {
     gifted_chests: giftedChests,
     items: COSMETIC_ITEMS,
     owned,
+    owned_counts: ownedCounts,
     equipped: { glow: me.glow_item, color: me.color_item }
   }, 200, corsHeaders);
 }
@@ -1078,23 +1082,22 @@ async function handleChestOpen(request, env, corsHeaders) {
     return json({ error: 'Diese Kiste wurde bereits geöffnet. Nächste in ' + Math.ceil((CHEST_COOLDOWN_MS - (now - lastMs)) / 3600000) + ' Std.', next_open_at: lastMs + CHEST_COOLDOWN_MS }, 429, corsHeaders);
   }
 
-  const ownedRows = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results;
-  const ownedSet = new Set(ownedRows.map(r => r.item_id));
-  const pool = COSMETIC_ITEMS.filter(i => !ownedSet.has(i.id));
-  if (!pool.length) {
-    return json({ error: 'Du hast bereits alle Items dieser Kiste gesammelt.' }, 409, corsHeaders);
-  }
+  const pool = COSMETIC_ITEMS;
 
   const item = rollCosmetic(pool);
 
-  await env.DB.prepare('INSERT INTO inventory (username, item_id, obtained_at) VALUES (?, ?, datetime(\'now\'))').bind(me.username, item.id).run();
+  await env.DB.prepare(
+    'INSERT INTO inventory (username, item_id, obtained_at, quantity) VALUES (?, ?, datetime(\'now\'), 1) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + 1, obtained_at = excluded.obtained_at'
+  ).bind(me.username, item.id).run();
   if (usesGiftedChest) {
     await env.DB.prepare('UPDATE chest_credits SET credits = credits - 1, updated_at = datetime(\'now\') WHERE username = ? AND credits > 0').bind(me.username).run();
   } else {
     await env.DB.prepare('INSERT INTO chest_opens (username, last_open_at) VALUES (?, datetime(\'now\')) ON CONFLICT(username) DO UPDATE SET last_open_at = excluded.last_open_at').bind(me.username).run();
   }
 
-  const owned = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results.map(r => r.item_id);
+  const ownedRowsAfter = (await env.DB.prepare('SELECT item_id, quantity FROM inventory WHERE username = ?').bind(me.username).all()).results;
+  const owned = ownedRowsAfter.map(r => r.item_id);
+  const ownedCounts = Object.fromEntries(ownedRowsAfter.map(r => [r.item_id, Number(r.quantity) || 1]));
   const fresh = await env.DB.prepare('SELECT glow_item, color_item FROM users WHERE username = ?').bind(me.username).first();
 
   return json({
@@ -1106,6 +1109,7 @@ async function handleChestOpen(request, env, corsHeaders) {
       : now + CHEST_COOLDOWN_MS,
     gifted_chests: Math.max((usesGiftedChest ? giftedChests - 1 : giftedChests), 0),
     owned,
+    owned_counts: ownedCounts,
     equipped: { glow: fresh.glow_item, color: fresh.color_item }
   }, 200, corsHeaders);
 }
@@ -1139,7 +1143,7 @@ async function handleAdminChestGrantAll(request, env, corsHeaders) {
 
   for (const item of COSMETIC_ITEMS) {
     await env.DB.prepare(
-      'INSERT OR IGNORE INTO inventory (username, item_id) VALUES (?, ?)'
+      'INSERT INTO inventory (username, item_id, quantity) VALUES (?, ?, 1) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + 1'
     ).bind(admin.username, item.id).run();
   }
   return json({ success: true, count: COSMETIC_ITEMS.length }, 200, corsHeaders);

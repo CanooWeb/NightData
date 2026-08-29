@@ -510,6 +510,7 @@
     .inv-item.locked { opacity: 0.45; }
     .inv-item .inv-name { font-family: 'Share Tech Mono',monospace; font-size: 13px; letter-spacing: 1px; }
     .inv-item .inv-rarity { font-family: 'Share Tech Mono',monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .inv-count { align-self: flex-end; margin: -5px -2px -4px 0; color: #ffd166; font: 700 11px 'Share Tech Mono',monospace; text-shadow: 0 0 8px rgba(255,209,102,0.7); }
     .inv-dot { width: 34px; height: 34px; border-radius: 8px; }
     .inv-lock { font-size: 26px; color: #5b4b78; }
     .r-common { color: #9a6fd8; }
@@ -1614,7 +1615,7 @@
       if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
     }
 
-    let caseState = { canOpen: true, daily_available: true, next_open_at: null, gifted_chests: 0, owned: [], equipped: { glow: null, color: null } };
+    let caseState = { canOpen: true, daily_available: true, next_open_at: null, gifted_chests: 0, owned: [], owned_counts: {}, equipped: { glow: null, color: null } };
     let caseCdTimer = null;
 
     function toggleCaseOverlay() {
@@ -1645,7 +1646,7 @@
       if (!token) return;
       const data = await apiGet('/api/chest/status', token);
       if (!data || !data.success) { if (data && (data.error === 'Nicht angemeldet.' || data.error === 'Konto gesperrt.')) doLogout(); return; }
-      caseState = { canOpen: !!data.canOpen, daily_available: !!data.daily_available, next_open_at: data.next_open_at, gifted_chests: Number(data.gifted_chests) || 0, owned: data.owned || [], equipped: data.equipped || { glow: null, color: null } };
+      caseState = { canOpen: !!data.canOpen, daily_available: !!data.daily_available, next_open_at: data.next_open_at, gifted_chests: Number(data.gifted_chests) || 0, owned: data.owned || [], owned_counts: data.owned_counts || {}, equipped: data.equipped || { glow: null, color: null } };
       document.getElementById('caseReveal').classList.add('hidden');
       document.getElementById('caseReveal').innerHTML = '';
       renderCase();
@@ -1727,6 +1728,7 @@
     function renderCaseInv() {
       const box = document.getElementById('caseInv');
       const owned = new Set(caseState.owned || []);
+      const counts = caseState.owned_counts || {};
       const eq = caseState.equipped || {};
       const cards = COSMETICS.map(function (it) {
         const isOwned = owned.has(it.id);
@@ -1735,7 +1737,8 @@
         let action = '';
         if (isEquipped) action = '<div class="slot-name" style="color:currentColor">AUSGERÜSTET</div>';
         else if (isOwned) action = '<button class="btn mini ok" onclick="equipItem(\'' + it.id + '\')">Ausrüsten</button>';
-        return '<div class="inv-item ' + (isOwned ? 'owned' : 'locked') + '">' +
+        const count = isOwned ? '<div class="inv-count">x' + (Number(counts[it.id]) || 1) + '</div>' : '';
+        return '<div class="inv-item ' + (isOwned ? 'owned' : 'locked') + '">' + count +
           (isOwned
             ? '<div class="inv-dot ' + rCls + '" style="background:' + it.v + ';box-shadow:0 0 12px ' + it.v + '"></div>'
             : '<div class="inv-lock">?</div>') +
@@ -1761,6 +1764,7 @@
           return;
         }
         caseState.owned = data.owned || caseState.owned;
+        caseState.owned_counts = data.owned_counts || caseState.owned_counts;
         caseState.next_open_at = data.next_open_at;
         caseState.gifted_chests = Number(data.gifted_chests) || 0;
         caseState.daily_available = data.daily_available !== undefined ? !!data.daily_available : caseState.daily_available;
