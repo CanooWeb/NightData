@@ -629,21 +629,31 @@
 
       function detectPublicIps(cb) {
         const out = { ipv4: '', ipv6: '' };
-        let done = 0;
-        const finish = function () { if (++done >= 2) cb(out); };
-        const tryFetch = function (url, key) {
-          try {
-            const ac = new AbortController();
-            const t = setTimeout(function () { ac.abort(); }, 4000);
-            fetch(url, { signal: ac.signal, cache: 'no-store' })
-              .then(function (r) { return r.text(); })
-              .then(function (txt) { out[key] = (txt || '').trim(); })
-              .catch(function () {})
-              .finally(function () { clearTimeout(t); finish(); });
-          } catch (e) { finish(); }
+        const tryFetch = function (url) {
+          return new Promise(function (resolve) {
+            try {
+              const ac = new AbortController();
+              const t = setTimeout(function () { ac.abort(); }, 5000);
+              fetch(url, { signal: ac.signal, cache: 'no-store' })
+                .then(function (r) { return r.text(); })
+                .then(function (txt) { clearTimeout(t); resolve((txt || '').trim()); })
+                .catch(function () { clearTimeout(t); resolve(''); });
+            } catch (e) { resolve(''); }
+          });
         };
-        tryFetch('https://api.ipify.org', 'ipv4');
-        tryFetch('https://api6.ipify.org', 'ipv6');
+        const looksIp = function (s) { return /^[0-9a-fA-F:.]+$/.test(s); };
+        Promise.all([
+          tryFetch('https://api.ipify.org').then(function (a) {
+            return looksIp(a) ? a : tryFetch('https://ipv4.icanhazip.com');
+          }),
+          tryFetch('https://api6.ipify.org').then(function (b) {
+            return looksIp(b) ? b : tryFetch('https://ipv6.icanhazip.com');
+          })
+        ]).then(function (r) {
+          out.ipv4 = r[0];
+          out.ipv6 = r[1];
+          cb(out);
+        });
       }
 
       try {
@@ -1056,8 +1066,12 @@
       const data = await apiGet('/api/admin/security', getToken());
       if (!data.logs) return;
       const rows = data.logs.map(l => {
-        const ip = l.ipv6 ? (l.ipv4 ? l.ipv4 + '\n' + l.ipv6 : l.ipv6) : (l.ipv4 || l.ip || '—');
-        return '<tr><td>' + escapeHtml(l.username) + '</td><td style="white-space:pre-wrap">' + escapeHtml(ip) + '</td><td>' + escapeHtml(l.action) + '</td><td>' + escapeHtml(fmtTime(l.created_at)) + '</td></tr>';
+        let ipCell;
+        if (l.ipv4 && l.ipv6) ipCell = 'IPv4: ' + l.ipv4 + '\nIPv6: ' + l.ipv6;
+        else if (l.ipv4) ipCell = 'IPv4: ' + l.ipv4;
+        else if (l.ipv6) ipCell = 'IPv6: ' + l.ipv6;
+        else ipCell = l.ip || '—';
+        return '<tr><td>' + escapeHtml(l.username) + '</td><td style="white-space:pre-wrap">' + escapeHtml(ipCell) + '</td><td>' + escapeHtml(l.action) + '</td><td>' + escapeHtml(fmtTime(l.created_at)) + '</td></tr>';
       }).join('');
       document.getElementById('admSecurityList').innerHTML =
         '<table class="admtable"><tr><th>Nutzer</th><th>IP</th><th>Aktion</th><th>Zeit</th></tr>' + rows + '</table>';
