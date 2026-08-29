@@ -148,6 +148,9 @@ export default {
       if (url.pathname === '/api/chest/open' && request.method === 'POST') {
         return await handleChestOpen(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/chest/grant' && request.method === 'POST') {
+        return await handleAdminChestGrant(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/inventory/equip' && request.method === 'POST') {
         return await handleInventoryEquip(request, env, corsHeaders);
       }
@@ -366,6 +369,13 @@ async function ensureSchema(env) {
     CREATE TABLE IF NOT EXISTS chest_opens (
       username TEXT PRIMARY KEY,
       last_open_at TEXT
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS chest_credits (
+      username TEXT PRIMARY KEY,
+      credits INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
   await env.DB.prepare('ALTER TABLE users ADD COLUMN glow_item TEXT').run().catch(() => {});
@@ -1023,11 +1033,14 @@ async function handleChestStatus(request, env, corsHeaders) {
   const canOpen = !lastMs || now - lastMs >= CHEST_COOLDOWN_MS;
 
   const owned = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results.map(r => r.item_id);
+  const creditRow = await env.DB.prepare('SELECT credits FROM chest_credits WHERE username = ?').bind(me.username).first();
+  const giftedChests = Math.max(Number(creditRow?.credits) || 0, 0);
 
   return json({
     success: true,
-    canOpen,
-    next_open_at: canOpen ? null : (lastMs + CHEST_COOLDOWN_MS),
+    canOpen: canOpen || giftedChests > 0,
+    next_open_at: giftedChests > 0 || canOpen ? null : (lastMs + CHEST_COOLDOWN_MS),
+    gifted_chests: giftedChests,
     items: COSMETIC_ITEMS,
     owned,
     equipped: { glow: me.glow_item, color: me.color_item }
@@ -1039,9 +1052,13 @@ async function handleChestOpen(request, env, corsHeaders) {
   if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
 
   const now = Date.now();
+  const creditRow = await env.DB.prepare('SELECT credits FROM chest_credits WHERE username = ?').bind(me.username).first();
+  const giftedChests = Math.max(Number(creditRow?.credits) || 0, 0);
   const open = await env.DB.prepare('SELECT last_open_at FROM chest_opens WHERE username = ?').bind(me.username).first();
   const lastMs = open ? dtToMs(open.last_open_at) : null;
-  if (lastMs && now - lastMs < CHEST_COOLDOWN_MS) {
+  const dailyAvailable = !lastMs || now - lastMs >= CHEST_COOLDOWN_MS;
+  const usesGiftedChest = giftedChests > 0;
+  if (!usesGiftedChest && !dailyAvailable) {
     return json({ error: 'Diese Kiste wurde bereits geöffnet. Nächste in ' + Math.ceil((CHEST_COOLDOWN_MS - (now - lastMs)) / 3600000) + ' Std.', next_open_at: lastMs + CHEST_COOLDOWN_MS }, 429, corsHeaders);
   }
 
@@ -1055,7 +1072,11 @@ async function handleChestOpen(request, env, corsHeaders) {
   const item = rollCosmetic(pool);
 
   await env.DB.prepare('INSERT INTO inventory (username, item_id, obtained_at) VALUES (?, ?, datetime(\'now\'))').bind(me.username, item.id).run();
-  await env.DB.prepare('INSERT INTO chest_opens (username, last_open_at) VALUES (?, datetime(\'now\')) ON CONFLICT(username) DO UPDATE SET last_open_at = excluded.last_open_at').bind(me.username).run();
+  if (usesGiftedChest) {
+    await env.DB.prepare('UPDATE chest_credits SET credits = credits - 1, updated_at = datetime(\'now\') WHERE username = ? AND credits > 0').bind(me.username).run();
+  } else {
+    await env.DB.prepare('INSERT INTO chest_opens (username, last_open_at) VALUES (?, datetime(\'now\')) ON CONFLICT(username) DO UPDATE SET last_open_at = excluded.last_open_at').bind(me.username).run();
+  }
 
   const owned = (await env.DB.prepare('SELECT item_id FROM inventory WHERE username = ?').bind(me.username).all()).results.map(r => r.item_id);
   const fresh = await env.DB.prepare('SELECT glow_item, color_item FROM users WHERE username = ?').bind(me.username).first();
@@ -1063,10 +1084,37 @@ async function handleChestOpen(request, env, corsHeaders) {
   return json({
     success: true,
     item,
-    next_open_at: now + CHEST_COOLDOWN_MS,
+    canOpen: usesGiftedChest ? giftedChests - 1 > 0 || dailyAvailable : false,
+    next_open_at: usesGiftedChest
+      ? (dailyAvailable ? null : lastMs + CHEST_COOLDOWN_MS)
+      : now + CHEST_COOLDOWN_MS,
+    gifted_chests: Math.max((usesGiftedChest ? giftedChests - 1 : giftedChests), 0),
     owned,
     equipped: { glow: fresh.glow_item, color: fresh.color_item }
   }, 200, corsHeaders);
+}
+
+async function handleAdminChestGrant(request, env, corsHeaders) {
+  const admin = await isAdmin(request, env);
+  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const username = String(body.username || '').trim();
+  const amount = Number(body.amount);
+  if (!username) return json({ error: 'Kein Benutzername.' }, 400, corsHeaders);
+  if (!Number.isInteger(amount) || amount < 1 || amount > 100) {
+    return json({ error: 'Die Anzahl muss zwischen 1 und 100 liegen.' }, 400, corsHeaders);
+  }
+
+  const target = await env.DB.prepare('SELECT username FROM users WHERE username = ?').bind(username).first();
+  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
+
+  await env.DB.prepare(
+    'INSERT INTO chest_credits (username, credits, updated_at) VALUES (?, ?, datetime(\'now\')) ON CONFLICT(username) DO UPDATE SET credits = credits + excluded.credits, updated_at = datetime(\'now\')'
+  ).bind(username, amount).run();
+  const row = await env.DB.prepare('SELECT credits FROM chest_credits WHERE username = ?').bind(username).first();
+  return json({ success: true, username, gifted_chests: Number(row?.credits) || 0 }, 200, corsHeaders);
 }
 
 async function handleInventoryEquip(request, env, corsHeaders) {
@@ -1406,6 +1454,7 @@ async function handleAdminUserDelete(request, env, corsHeaders) {
   await env.DB.prepare('DELETE FROM dm_messages WHERE sender = ? OR recipient = ?').bind(user.username, user.username).run();
   await env.DB.prepare('DELETE FROM inventory WHERE username = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM chest_opens WHERE username = ?').bind(user.username).run();
+  await env.DB.prepare('DELETE FROM chest_credits WHERE username = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
 
   return json({ success: true }, 200, corsHeaders);

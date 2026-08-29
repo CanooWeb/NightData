@@ -798,6 +798,7 @@
           <button class="act" data-found data-tab="adm-overview" onclick="switchAdmTab('adm-overview')">System</button>
           <button data-found data-tab="adm-users" onclick="switchAdmTab('adm-users')">Nutzer</button>
           <button data-found data-tab="adm-roles" onclick="switchAdmTab('adm-roles')">Rollen</button>
+          <button data-tab="adm-chests" onclick="switchAdmTab('adm-chests')">Kisten</button>
           <button data-tab="adm-posts" onclick="switchAdmTab('adm-posts')">Nachrichten + Inhalte</button>
           <button data-tab="adm-security" onclick="switchAdmTab('adm-security')">Sicherheit</button>
           <button data-found data-tab="adm-settings" onclick="switchAdmTab('adm-settings')">Einstellungen</button>
@@ -817,6 +818,23 @@
         <div class="adm-tab" id="adm-users" data-found>
           <h3>Nutzer-Verwaltung</h3>
           <div id="admUsersList"><div class="empty">Lade…</div></div>
+        </div>
+
+        <div class="adm-tab" id="adm-chests">
+          <h3>Kisten verschenken</h3>
+          <p class="case-status">Vergibt zusätzliche Öffnungen. Diese werden vor der täglichen Kiste verwendet.</p>
+          <div class="wide-form" style="margin-bottom:22px;">
+            <div class="row">
+              <label for="chest-gift-user">Nutzername</label>
+              <input type="text" id="chest-gift-user" placeholder="Nutzername" maxlength="24">
+            </div>
+            <div class="row">
+              <label for="chest-gift-amount">Anzahl Kisten</label>
+              <input type="number" id="chest-gift-amount" value="1" min="1" max="100">
+            </div>
+            <button class="btn ok" onclick="adminGrantChests()">Kisten verschenken</button>
+            <div id="adm-chest-msg" class="message"></div>
+          </div>
         </div>
 
         <div class="adm-tab" id="adm-roles" data-found>
@@ -1000,7 +1018,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>Predicts-Kiste</h2>
-          <span class="live">● 24H COOLDOWN</span>
+          <span class="live">● INVENTAR</span>
         </div>
         <div class="panel-body">
           <div class="case-stage">
@@ -1508,7 +1526,7 @@
       if (dmThreadTimer) { clearInterval(dmThreadTimer); dmThreadTimer = null; }
     }
 
-    let caseState = { canOpen: true, next_open_at: null, owned: [], equipped: { glow: null, color: null } };
+    let caseState = { canOpen: true, next_open_at: null, gifted_chests: 0, owned: [], equipped: { glow: null, color: null } };
     let caseCdTimer = null;
 
     function toggleCaseOverlay() {
@@ -1534,7 +1552,7 @@
       if (!token) return;
       const data = await apiGet('/api/chest/status', token);
       if (!data || !data.success) { if (data && (data.error === 'Nicht angemeldet.' || data.error === 'Konto gesperrt.')) doLogout(); return; }
-      caseState = { canOpen: !!data.canOpen, next_open_at: data.next_open_at, owned: data.owned || [], equipped: data.equipped || { glow: null, color: null } };
+      caseState = { canOpen: !!data.canOpen, next_open_at: data.next_open_at, gifted_chests: Number(data.gifted_chests) || 0, owned: data.owned || [], equipped: data.equipped || { glow: null, color: null } };
       document.getElementById('caseReveal').classList.add('hidden');
       document.getElementById('caseReveal').innerHTML = '';
       renderCase();
@@ -1553,11 +1571,15 @@
       document.getElementById('caseBox').classList.toggle('ready', !!caseState.canOpen);
       btn.classList.toggle('hidden', !caseState.canOpen);
       if (caseState.canOpen) {
-        st.textContent = 'Die Kiste ist bereit – eine Öffnung alle 24 Stunden.';
+        st.textContent = caseState.gifted_chests > 0
+          ? 'Geschenkte Kisten verfügbar: ' + caseState.gifted_chests + '.'
+          : 'Die Kiste ist bereit – eine Öffnung alle 24 Stunden.';
         cd.textContent = 'BEREIT';
         return;
       }
-      st.textContent = 'Kiste wurde geöffnet. Nächste Öffnung in:';
+      st.textContent = caseState.gifted_chests > 0
+        ? 'Geschenkte Kisten verfügbar: ' + caseState.gifted_chests + '.'
+        : 'Kiste wurde geöffnet. Nächste Öffnung in:';
       cd.textContent = formatCountdown((caseState.next_open_at || 0) - Date.now());
     }
 
@@ -1641,7 +1663,8 @@
         }
         caseState.owned = data.owned || caseState.owned;
         caseState.next_open_at = data.next_open_at;
-        caseState.canOpen = false;
+        caseState.gifted_chests = Number(data.gifted_chests) || 0;
+        caseState.canOpen = !!data.canOpen;
         const reveal = document.getElementById('caseReveal');
         const rCls = RARITY_CSS[data.item.rarity] || 'r-common';
         reveal.innerHTML =
@@ -2610,6 +2633,16 @@
     async function adminSetBan(id, banned) {
       await api('/api/admin/users/ban', { id, banned }, getToken());
       loadAdminUsers();
+    }
+
+    async function adminGrantChests() {
+      const username = document.getElementById('chest-gift-user').value.trim();
+      const amount = Number(document.getElementById('chest-gift-amount').value);
+      const data = await api('/api/admin/chest/grant', { username, amount }, getToken());
+      showMessage('adm-chest-msg', data.success
+        ? amount + ' Kiste(n) an ' + username + ' vergeben. Gesamt: ' + data.gifted_chests
+        : (data.error || 'Fehler beim Verschenken.'), data.success ? 'success' : 'error');
+      if (data.success) document.getElementById('chest-gift-user').value = '';
     }
 
     async function loadAdminRoles() {
