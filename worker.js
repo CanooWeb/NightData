@@ -86,6 +86,9 @@ export default {
       if (url.pathname === '/api/admin/security' && request.method === 'GET') {
         return await handleAdminSecurity(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/admin/security/clear' && request.method === 'POST') {
+        return await handleAdminSecurityClear(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/admin/settings' && request.method === 'GET') {
         return await handleAdminSettingsGet(request, env, corsHeaders);
       }
@@ -210,6 +213,11 @@ async function getAuthUser(request, env) {
 async function isFounder(request, env) {
   const user = await getAuthUser(request, env);
   return user && user.role === 'founder' ? user : null;
+}
+
+async function isStaff(request, env) {
+  const user = await getAuthUser(request, env);
+  return user && (user.role === 'founder' || user.role === 'moderator') ? user : null;
 }
 
 async function handleRegister(request, env, corsHeaders, settings) {
@@ -460,8 +468,8 @@ async function handleCreateTicket(request, env, corsHeaders) {
 }
 
 async function handleAdminTicketClose(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const staff = await isStaff(request, env);
+  if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -474,8 +482,8 @@ async function handleAdminTicketClose(request, env, corsHeaders) {
 }
 
 async function handleAdminTicketDelete(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const staff = await isStaff(request, env);
+  if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -573,8 +581,8 @@ async function handleAdminUserDelete(request, env, corsHeaders) {
 }
 
 async function handleAdminPosts(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const staff = await isStaff(request, env);
+  if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const posts = (await env.DB.prepare(
     'SELECT id, kind, title, author, file_key, created_at, expires_at FROM posts ORDER BY id DESC LIMIT 200'
@@ -602,8 +610,8 @@ async function handleAdminPostUpdate(request, env, corsHeaders) {
 }
 
 async function handleAdminPostDelete(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const staff = await isStaff(request, env);
+  if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
@@ -615,14 +623,22 @@ async function handleAdminPostDelete(request, env, corsHeaders) {
 }
 
 async function handleAdminSecurity(request, env, corsHeaders) {
-  const founder = await isFounder(request, env);
-  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+  const staff = await isStaff(request, env);
+  if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const logs = (await env.DB.prepare(
     'SELECT id, username, ip, ua, action, ipv4, ipv6, created_at FROM security_logs ORDER BY id DESC LIMIT 100'
   ).all()).results;
 
   return json({ logs }, 200, corsHeaders);
+}
+
+async function handleAdminSecurityClear(request, env, corsHeaders) {
+  const founder = await isFounder(request, env);
+  if (!founder) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
+
+  await env.DB.prepare('DELETE FROM security_logs').run();
+  return json({ success: true }, 200, corsHeaders);
 }
 
 async function handleAdminSettingsGet(request, env, corsHeaders) {
