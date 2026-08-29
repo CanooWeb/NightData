@@ -441,6 +441,7 @@
       padding: 3px 6px; margin-left: 2px; vertical-align: middle;
       box-shadow: 0 0 8px rgba(255,82,82,0.7);
     }
+    .badge.reqbadge { background: #7ae0e0; color: #0a1420; box-shadow: 0 0 8px rgba(122,224,224,0.7); animation: pulse 1.6s infinite; }
 
     .dmoverlay {
       position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto;
@@ -686,7 +687,7 @@
       <button class="profile-gear" onclick="openProfile()" title="Profil bearbeiten">⚙</button>
     </div>
     <button class="btn ok adminonly floatui-admin" id="btnAdmin" onclick="openAdmin()">◈ Admin</button>
-    <button class="btn mini floatui-friends" id="btnFriends" onclick="toggleDmOverlay()" title="Freunde & Nachrichten">&#9679; <span id="dmBadge" class="badge hidden">0</span> Freunde</button>
+    <button class="btn mini floatui-friends" id="btnFriends" onclick="toggleDmOverlay()" title="Freunde & Nachrichten">&#9679; <span id="reqBadge" class="badge reqbadge hidden" title="Offene Freundschaftsanfragen">+</span><span id="dmBadge" class="badge hidden">0</span> Freunde</button>
     <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
   </div>
 
@@ -1415,6 +1416,8 @@
       const friends = await apiGet('/api/friends', token);
       if (Array.isArray(friends.friends)) {
         renderFriends(friends);
+        const reqBadge = document.getElementById('reqBadge');
+        if (reqBadge) reqBadge.classList.toggle('hidden', !(friends.incoming && friends.incoming.length));
         if (!dmThreadFriend) renderConversationFriends(friends.friends);
       }
       const conv = await apiGet('/api/dm/conversations', token);
@@ -1648,6 +1651,24 @@
     let lastUnreadSeen = Number(localStorage.getItem('ndUnreadSeen') || 0);
     let dmAudioCtx = null;
 
+    let reqUnreadTimer = null;
+    let lastReqSeen = Number(localStorage.getItem('ndReqSeen') || 0);
+    const reqSeenPreviously = localStorage.getItem('ndReqSeen') !== null;
+
+    const REQ_VOICE_TEXT = 'You have a new friend.';
+
+    function speakNewFriend() {
+      try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(REQ_VOICE_TEXT);
+        u.lang = 'en-US';
+        u.rate = 0.95;
+        u.pitch = 1;
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
+    }
+
     function dmSoundEnabled() {
       return localStorage.getItem('ndSound') !== 'off';
     }
@@ -1704,6 +1725,30 @@
         const newest = data.messages[0];
         const inThread = document.getElementById('dmOverlay').classList.contains('show') && dmThreadFriend === newest.sender;
         if (dmSoundEnabled() && !inThread) playDmSound();
+      }
+    }
+
+    async function pollReqUnread() {
+      const token = getToken();
+      if (!token) return;
+      const data = await apiGet('/api/friends/unread', token);
+      if (!data || data.total === undefined) return;
+      const badge = document.getElementById('reqBadge');
+      if (data.total > 0) {
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+        return;
+      }
+      const latest = data.latest_id || 0;
+      if (latest > lastReqSeen) {
+        lastReqSeen = latest;
+        localStorage.setItem('ndReqSeen', String(latest));
+        const overlayOpen = document.getElementById('dmOverlay').classList.contains('show');
+        if (reqSeenPreviously && dmSoundEnabled() && !overlayOpen) {
+          playDmSound();
+          speakNewFriend();
+        }
       }
     }
 
@@ -1906,6 +1951,9 @@
       if (dmUnreadTimer) clearInterval(dmUnreadTimer);
       pollDmUnread();
       dmUnreadTimer = setInterval(pollDmUnread, 3000);
+      if (reqUnreadTimer) clearInterval(reqUnreadTimer);
+      pollReqUnread();
+      reqUnreadTimer = setInterval(pollReqUnread, 3000);
     }
 
     function openAdmin() {
@@ -2020,6 +2068,8 @@
       stopChatPolling();
       hideChat();
       if (dmUnreadTimer) { clearInterval(dmUnreadTimer); dmUnreadTimer = null; }
+      if (reqUnreadTimer) { clearInterval(reqUnreadTimer); reqUnreadTimer = null; }
+      document.getElementById('reqBadge').classList.add('hidden');
       document.getElementById('btnFriends').classList.add('hidden');
       document.getElementById('main').classList.remove('active');
       document.getElementById('loginCard').classList.remove('hidden');

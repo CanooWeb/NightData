@@ -65,6 +65,9 @@ export default {
       if (url.pathname === '/api/friends' && request.method === 'GET') {
         return await handleFriendsGet(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/friends/unread' && request.method === 'GET') {
+        return await handleFriendsUnread(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/friends/request' && request.method === 'POST') {
         return await handleFriendRequest(request, env, corsHeaders);
       }
@@ -294,6 +297,8 @@ async function ensureSchema(env) {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_fr_to ON friend_requests (to_user)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_dm_recip ON dm_messages (recipient, read)').run();
   const seedRoles = [
     ['founder', '#7ae0e0', 1],
     ['admin', '#ff5252', 1],
@@ -671,6 +676,21 @@ async function handleFriendsGet(request, env, corsHeaders) {
   ).bind(me, me, me).all()).results;
 
   return json({ friends, incoming, outgoing }, 200, corsHeaders);
+}
+
+async function handleFriendsUnread(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const row = await env.DB.prepare(
+    'SELECT id FROM friend_requests WHERE to_user = ? ORDER BY id DESC LIMIT 1'
+  ).bind(user.username).first();
+  const latest = row ? row.id : 0;
+  const total = (await env.DB.prepare(
+    'SELECT COUNT(*) AS c FROM friend_requests WHERE to_user = ?'
+  ).bind(user.username).first()).c || 0;
+
+  return json({ total, latest_id: latest }, 200, corsHeaders);
 }
 
 async function handleFriendRequest(request, env, corsHeaders) {
