@@ -2214,10 +2214,11 @@
 
     function friendNameHtml(u) {
       const glow = glowColorOf(u);
-      const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
-      const roleColor = roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
+      const role = String(u.role || '').toLowerCase();
+      const roleColor = roleColorMap[role] || roleColorMap.member || '#9a6fd8';
+      const color = glow || roleColor;
       const name = u.alias || u.username || '???';
-       const badge = u.role ? '<span class="c-role" style="' + roleBadgeCss(u.role, roleColor) + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
+       const badge = role ? '<span class="c-role" style="' + roleBadgeCss(role, roleColor) + '">' + escapeHtml(role.toUpperCase()) + '</span>' : '';
        return '<div class="f-line"><span class="f-name" style="' + nameTextCss(u, color) + '">' + escapeHtml(name) + '</span>' + badge + '</div><div class="f-sub">' + escapeHtml(u.username || '') + '</div>';
     }
 
