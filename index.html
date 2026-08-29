@@ -479,7 +479,8 @@
     .voiceoverlay { position: fixed; inset: 0; z-index: 35; display: none; overflow-y: auto; padding: 24px 16px 80px; background: radial-gradient(circle at 50% 0%, rgba(139,63,240,.16), transparent 42%), rgba(5,6,10,0.97); backdrop-filter: blur(16px); }
     .voiceoverlay.show { display: block; }
     .maintenance-screen { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(5,6,10,.98); text-align: center; }
-    .maintenance-screen.show { display: flex; }
+    .maintenance-screen.show { display: flex; pointer-events: auto; }
+    body.maintenance-active { overflow: hidden; }
     .maintenance-card { max-width: 620px; padding: 36px 28px; border: 1px solid rgba(255,209,102,.55); border-radius: 16px; background: rgba(16,18,30,.96); box-shadow: 0 0 35px rgba(255,209,102,.18); }
     .maintenance-card h1 { color: #ffd166; font-family: 'Orbitron',sans-serif; letter-spacing: 2px; margin-bottom: 16px; }
     .maintenance-card p { color: #d9cdf2; white-space: pre-wrap; line-height: 1.6; }
@@ -2809,11 +2810,25 @@
       } else {
         welcome.classList.add('hidden');
       }
+      applyMaintenanceState(!!config.maintenanceEnabled, config.maintenanceText);
+    }
+
+    function applyMaintenanceState(enabled, text) {
       const role = String(getStoredUser().role || '').toLowerCase();
       const maintenance = document.getElementById('maintenanceScreen');
       const allowed = role === 'admin' || role === 'founder';
-      maintenance.classList.toggle('show', !!config.maintenanceEnabled && !allowed);
-      document.getElementById('maintenanceText').textContent = config.maintenanceText || 'Unsere Seite ist aktuell in Wartungsarbeiten.';
+      const active = !!enabled && !allowed;
+      maintenance.classList.toggle('show', active);
+      document.body.classList.toggle('maintenance-active', active);
+      document.getElementById('maintenanceText').textContent = text || 'Unsere Seite ist aktuell in Wartungsarbeiten. Bitte versuche es später erneut.';
+    }
+
+    async function pollMaintenance() {
+      if (!getToken()) return;
+      const status = await apiGet('/api/status', getToken());
+      if (status && typeof status.maintenanceEnabled === 'boolean') {
+        applyMaintenanceState(status.maintenanceEnabled, status.maintenanceText);
+      }
     }
 
     function announceWarnings(warnings) {
@@ -3426,6 +3441,7 @@
       if (data.success) {
         showMessage('adm-settings-msg', 'Einstellungen gespeichert.', 'success');
         document.getElementById('set-anndur').value = formatDuration(parsedDur || 0);
+        applyMaintenanceState(settings.maintenance_enabled === '1', settings.maintenance_text);
         loadFeed();
       } else {
         showMessage('adm-settings-msg', data.error || 'Fehler.', 'error');
@@ -3515,6 +3531,7 @@
       setInterval(function () {
         if (document.getElementById('main').classList.contains('active')) {
           loadFeed();
+          pollMaintenance();
         }
       }, 2000);
     })();

@@ -88,6 +88,9 @@ export default {
       if (url.pathname === '/api/me' && request.method === 'GET') {
         return await handleMe(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/status' && request.method === 'GET') {
+        return await handleStatus(env, corsHeaders);
+      }
       if (url.pathname === '/api/profile' && request.method === 'GET') {
         return await handleProfileGet(request, env, corsHeaders);
       }
@@ -503,6 +506,14 @@ async function getSettings(env) {
   const map = { ...DEFAULTS };
   for (const row of rows) map[row.key] = row.value;
   return map;
+}
+
+async function handleStatus(env, corsHeaders) {
+  const settings = await getSettings(env);
+  return json({
+    maintenanceEnabled: settings.maintenance_enabled === '1',
+    maintenanceText: settings.maintenance_text,
+  }, 200, corsHeaders);
 }
 
 async function setSettings(env, updates) {
