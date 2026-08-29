@@ -454,7 +454,7 @@
 
   <div class="floatui hidden" id="floatui">
     <div class="rankpill" id="rankPill">
-      <span id="topUsername">OPERATOR: —</span>
+      <span id="topUsername">—</span>
       <span class="role-badge" id="topRole">LIMITED</span>
     </div>
     <button class="btn ok adminonly floatui-admin" id="btnAdmin" onclick="openAdmin()">◈ Admin</button>
@@ -863,7 +863,7 @@
       document.getElementById('loginCard').classList.add('hidden');
       document.getElementById('main').classList.add('active');
       document.getElementById('floatui').classList.remove('hidden');
-      document.getElementById('topUsername').textContent = 'OPERATOR: ' + escapeHtml(user.username).toUpperCase();
+      document.getElementById('topUsername').textContent = escapeHtml(user.username).toUpperCase();
       const badge = document.getElementById('topRole');
       const roleMap = { founder: ['FOUNDER', 'founder'], moderator: ['MODERATOR', 'moderator'], member: ['LIMITED', 'member'] };
       const rInfo = roleMap[user.role] || roleMap.member;
