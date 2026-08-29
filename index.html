@@ -1501,8 +1501,11 @@
       return 'color:' + (color || '#9a6fd8') + ';text-shadow:0 0 10px ' + (color || '#9a6fd8') + ';';
     }
     function nameTextCss(u, color) {
-      if (u && String(u.role || '').toLowerCase() === 'founder') return 'background-image:linear-gradient(90deg,#3b0505,#ff2525,#120000,#b30d0d,#3b0505);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 8px rgba(255,25,25,.85);background-size:220% 100%;animation:magmaflow 2.2s linear infinite;';
       return glowTextCss(u, color);
+    }
+    function roleBadgeCss(role, color) {
+      if (String(role || '').toLowerCase() === 'founder') return 'background-image:linear-gradient(90deg,#3b0505,#ff2525,#120000,#b30d0d,#3b0505);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 8px rgba(255,25,25,.85);background-size:220% 100%;animation:magmaflow 2.2s linear infinite;border-color:' + color + ';';
+      return 'color:' + color + ';border-color:' + color + ';';
     }
     function themeColorOf(u) { return cosmeticColorById(u && (u.color_item || u.theme || u.sender_theme)); }
     function applyWebsiteTheme(u) {
@@ -1532,9 +1535,14 @@
       const glow = glowColorOf(u);
       const color = roleColorMap[role] || roleColorMap.member || '#9a6fd8';
       badge.textContent = role.toUpperCase();
-      badge.style.color = color;
+      badge.style.color = role === 'founder' ? 'transparent' : color;
+      badge.style.backgroundImage = role === 'founder' ? 'linear-gradient(90deg,#3b0505,#ff2525,#120000,#b30d0d,#3b0505)' : '';
+      badge.style.backgroundClip = role === 'founder' ? 'text' : '';
+      badge.style.webkitBackgroundClip = role === 'founder' ? 'text' : '';
+      badge.style.backgroundSize = role === 'founder' ? '220% 100%' : '';
+      badge.style.animation = role === 'founder' ? 'magmaflow 2.2s linear infinite' : '';
       badge.style.borderColor = color;
-      badge.style.textShadow = '0 0 8px ' + color;
+      badge.style.textShadow = role === 'founder' ? '0 0 8px rgba(255,25,25,.85)' : '0 0 8px ' + color;
     }
 
     function updateRankPill(user) {
@@ -1619,7 +1627,7 @@
         const joined = c.members.some(function (m) { return m.username === me; });
         const action = joined ? '<button class="btn mini danger" onclick="leaveVoiceChannel()">Verlassen</button>' + '<button class="btn mini" onclick="toggleVoiceMute()">' + (voiceMuted ? 'Mikro an' : 'Stumm') + '</button>' : '<button class="btn mini ok" onclick="joinVoiceChannel(' + c.id + ')">Beitreten</button>';
         const owner = c.owner === me ? '<button class="btn mini danger" onclick="closeVoiceChannel(' + c.id + ')">Schließen</button>' : '';
-        const members = c.members.map(function (m) { const glow = glowColorOf(m); const roleColor = roleColorMap[m.role] || roleColorMap.member || '#9a6fd8'; const color = glow || roleColor; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt="" style="box-shadow:0 0 8px ' + color + '">' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + color + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + nameTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role" style="color:' + roleColor + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span></span>'; }).join('');
+        const members = c.members.map(function (m) { const glow = glowColorOf(m); const roleColor = roleColorMap[m.role] || roleColorMap.member || '#9a6fd8'; const color = glow || roleColor; const name = m.alias || m.username; const avatar = m.avatar ? '<img class="voice-member-avatar" src="' + escapeHtml(m.avatar) + '" alt="" style="box-shadow:0 0 8px ' + color + '">' : '<span class="voice-member-avatar" style="display:flex;align-items:center;justify-content:center;color:' + color + ';background:rgba(139,63,240,.18)">' + escapeHtml(name.charAt(0).toUpperCase()) + '</span>'; return '<span class="voice-member' + (m.username === me ? ' me' : '') + '"><span class="voice-member-head">' + avatar + '<span style="' + nameTextCss(m, color) + '">' + escapeHtml(name) + '</span></span><span>' + escapeHtml(m.username) + ' · ' + voiceDuration(m.joined_at) + (m.role ? ' · <span class="voice-member-role" style="' + roleBadgeCss(m.role, roleColor) + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '') + '</span><span class="voice-bars' + (voiceSpeaking[m.username] ? ' speaking' : '') + '" data-voice-user="' + escapeHtml(m.username) + '" title="Spricht"><span></span><span></span><span></span><span></span></span></span>'; }).join('');
         return '<div class="voice-channel"><div class="voice-channel-info"><div class="voice-channel-name">' + escapeHtml(c.name) + (joined ? ' <span class="voice-live">● LIVE</span>' : '') + '</div><div class="voice-channel-meta">' + (c.is_open ? 'OFFEN' : 'GESCHLOSSEN') + ' · ' + c.member_count + '/' + c.max_users + ' · von ' + escapeHtml(c.owner) + '</div><div class="voice-members">' + (members || '<span class="voice-member">Noch niemand</span>') + '</div></div>' + action + owner + '</div>';
       }).join('') : '<div class="empty">Noch keine Sprachkanäle.</div>';
     }
@@ -1710,7 +1718,7 @@
       const av = m.avatar
         ? '<img class="c-av" src="' + escapeHtml(m.avatar) + '" alt=""' + avRing + '>'
         : '<span class="c-av c-av-ph" style="color:' + color + '">' + escapeHtml((name[0] || '?').toUpperCase()) + '</span>';
-       const role = m.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '';
+       const role = m.role ? '<span class="c-role" style="' + roleBadgeCss(m.role, roleColor) + '">' + escapeHtml(String(m.role).toUpperCase()) + '</span>' : '';
       const mutedTag = m.muted_until ? '<span class="c-role muted-tag" style="color:#ff5252;border-color:#ff5252">STUMM</span>' : '';
       let actions = '';
       if (chatIsStaff() && String(m.author) !== String(getStoredUser().username || '')) {
@@ -2205,7 +2213,7 @@
       const glow = glowColorOf(u);
       const color = glow || roleColorMap[u.role] || roleColorMap.member || '#9a6fd8';
       const name = u.alias || u.username || '???';
-       const badge = u.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
+       const badge = u.role ? '<span class="c-role" style="' + roleBadgeCss(u.role, roleColor) + '">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '';
        return '<div class="f-line"><span class="f-name" style="' + nameTextCss(u, color) + '">' + escapeHtml(name) + '</span>' + badge + '</div><div class="f-sub">' + escapeHtml(u.username || '') + '</div>';
     }
 
@@ -2369,7 +2377,7 @@
       let meta = '';
       if (!isMe) {
          meta = '<div class="cmeta"><span class="cname" style="' + nameTextCss(m, color) + '">' + escapeHtml(name) + '</span>' +
-           (m.sender_role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
+           (m.sender_role ? '<span class="c-role" style="' + roleBadgeCss(m.sender_role, roleColor) + '">' + escapeHtml(String(m.sender_role).toUpperCase()) + '</span>' : '') + '</div>';
       }
       const receipt = isMe
         ? '<span class="dm-receipt' + (m.read ? ' read' : '') + '" title="' + (m.read ? 'Gelesen' : 'Gesendet') + '">' + (m.read ? '&#10003;&#10003;' : '&#10003;') + '</span>'
@@ -2403,7 +2411,7 @@
         const name = data.friend.alias || data.friend.username;
         document.getElementById('dmThreadName').innerHTML =
            friendAvatarHtml(data.friend) + '<span class="cname" style="' + nameTextCss(data.friend, color) + '">' + escapeHtml(name) + '</span>' +
-           (data.friend.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
+           (data.friend.role ? '<span class="c-role" style="' + roleBadgeCss(data.friend.role, roleColor) + '">' + escapeHtml(String(data.friend.role).toUpperCase()) + '</span>' : '');
       }
       if (dmLastId === 0) box.innerHTML = '';
       data.messages.forEach(function (m) {
@@ -2605,7 +2613,7 @@
         : '<span class="up-avatar-ph" style="color:' + color + ';border-color:' + color + '">' + escapeHtml(((u.alias || u.username || '?').charAt(0)).toUpperCase()) + '</span>';
       document.getElementById('upName').innerHTML =
          '<span style="' + nameTextCss(u, color) + '">' + escapeHtml(u.alias || u.username) + '</span>' +
-         (u.role ? '<span class="c-role" style="color:' + roleColor + ';border-color:' + roleColor + ';margin-left:8px;font-size:11px;">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '');
+         (u.role ? '<span class="c-role" style="' + roleBadgeCss(u.role, roleColor) + 'margin-left:8px;font-size:11px;">' + escapeHtml(String(u.role).toUpperCase()) + '</span>' : '');
       document.getElementById('upUsername').textContent = '@' + u.username;
       document.getElementById('upBio').textContent = u.bio || '';
       document.getElementById('upBio').style.display = u.bio ? '' : 'none';
