@@ -44,6 +44,15 @@ export default {
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         return await handleProfileUpdate(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/chat' && request.method === 'GET') {
+        return await handleChatGet(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/chat/messages' && request.method === 'GET') {
+        return await handleChatNew(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/chat/send' && request.method === 'POST') {
+        return await handleChatSend(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
       }
@@ -197,6 +206,14 @@ async function ensureSchema(env) {
       name TEXT NOT NULL UNIQUE,
       color TEXT NOT NULL DEFAULT '#9a6fd8',
       builtin INTEGER NOT NULL DEFAULT 0
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      author TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
   const seedRoles = [
@@ -387,6 +404,53 @@ async function handleProfileUpdate(request, env, corsHeaders) {
 
   const updated = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role FROM users WHERE id = ?').bind(user.id).first();
   return json({ success: true, user: updated }, 200, corsHeaders);
+}
+
+const CHAT_JOIN =
+  'SELECT m.id, m.author, m.message, m.created_at, u.avatar, u.alias, u.role FROM chat_messages m LEFT JOIN users u ON u.username = m.author';
+
+async function handleChatGet(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const rows = (await env.DB.prepare(CHAT_JOIN + ' ORDER BY m.id DESC LIMIT 50').all()).results.reverse();
+  return json({ messages: rows }, 200, corsHeaders);
+}
+
+async function handleChatNew(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  const after = Math.max(Number(new URL(request.url).searchParams.get('after')) || 0, 0);
+  const messages = (await env.DB.prepare(CHAT_JOIN + ' WHERE m.id > ? ORDER BY m.id ASC LIMIT 100').bind(after).all()).results;
+  return json({ messages }, 200, corsHeaders);
+}
+
+async function handleChatSend(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const message = String(body.message || '').trim().slice(0, 500);
+  if (!message) return json({ error: 'Du kannst keine leere Nachricht senden.' }, 400, corsHeaders);
+
+  const last = await env.DB.prepare('SELECT created_at FROM chat_messages WHERE author = ? ORDER BY id DESC LIMIT 1').bind(user.username).first();
+  if (last) {
+    try {
+      const lastMs = Date.parse(String(last.created_at).replace(' ', 'T') + 'Z') || 0;
+      if (lastMs && (Date.now() - lastMs) < 2000) {
+        return json({ error: 'Bitte kurz warten, bevor du die nächste Nachricht sendest.' }, 429, corsHeaders);
+      }
+    } catch (e) {}
+  }
+
+  const result = await env.DB.prepare('INSERT INTO chat_messages (author, message) VALUES (?, ?)').bind(user.username, message).run();
+  const msg = (await env.DB.prepare(CHAT_JOIN + ' WHERE m.id = ?').bind(result.meta.last_row_id).first());
+
+  await env.DB.prepare('DELETE FROM chat_messages WHERE id < (SELECT COALESCE(MAX(id), 0) - 400 FROM chat_messages)').run();
+
+  return json({ success: true, message: msg }, 201, corsHeaders);
 }
 
 async function handleFeed(request, env, corsHeaders, settings) {
