@@ -352,11 +352,13 @@ async function ensureSchema(env) {
       author TEXT NOT NULL,
       discord_name TEXT NOT NULL,
       discord_id TEXT DEFAULT '',
-      info TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'open',
+       info TEXT NOT NULL DEFAULT '',
+       reason TEXT NOT NULL DEFAULT '',
+       status TEXT NOT NULL DEFAULT 'open',
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
+  await env.DB.prepare(`ALTER TABLE discord_tickets ADD COLUMN reason TEXT NOT NULL DEFAULT ''`).run().catch(() => {});
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS custom_roles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1532,7 +1534,7 @@ async function handleFeed(request, env, corsHeaders, settings) {
     "SELECT id, title, body, author, file_key, created_at FROM posts WHERE kind = 'submission' ORDER BY id DESC LIMIT 50"
   ).all()).results;
   const tickets = (await env.DB.prepare(
-    'SELECT id, author, discord_name, discord_id, info, status, created_at FROM discord_tickets ORDER BY id DESC LIMIT 100'
+    'SELECT id, author, discord_name, discord_id, reason, info, status, created_at FROM discord_tickets ORDER BY id DESC LIMIT 100'
   ).all()).results;
   const roles = (await env.DB.prepare('SELECT name, color FROM custom_roles ORDER BY id').all()).results;
 
@@ -1673,21 +1675,25 @@ async function handleCreateTicket(request, env, corsHeaders) {
 
   const discordName = String(body.discordName || '').trim();
   const discordId = String(body.discordId || '').trim();
+  const reason = String(body.reason || '').trim();
   const info = String(body.info || '').trim();
 
-  if (!discordName) {
-    return json({ error: 'Bitte den Discord-Namen angeben.' }, 400, corsHeaders);
+  if (!discordName && !discordId) {
+    return json({ error: 'Bitte Discord-Namen oder Discord-ID angeben.' }, 400, corsHeaders);
   }
-  if (discordName.length > 64 || discordId.length > 64 || info.length > 2000) {
+  if (!reason) {
+    return json({ error: 'Bitte einen Grund angeben.' }, 400, corsHeaders);
+  }
+  if (discordName.length > 64 || discordId.length > 64 || reason.length > 2000 || info.length > 2000) {
     return json({ error: 'Eingaben sind zu lang.' }, 400, corsHeaders);
   }
 
   const result = await env.DB.prepare(
-    'INSERT INTO discord_tickets (author, discord_name, discord_id, info) VALUES (?, ?, ?, ?)'
-  ).bind(user.username, discordName, discordId, info).run();
+    'INSERT INTO discord_tickets (author, discord_name, discord_id, reason, info) VALUES (?, ?, ?, ?, ?)'
+  ).bind(user.username, discordName, discordId, reason, info).run();
 
   const ticket = await env.DB.prepare(
-    'SELECT id, author, discord_name, discord_id, info, status, created_at FROM discord_tickets WHERE id = ?'
+    'SELECT id, author, discord_name, discord_id, reason, info, status, created_at FROM discord_tickets WHERE id = ?'
   ).bind(result.meta.last_row_id).first();
 
   return json({ success: true, ticket }, 201, corsHeaders);

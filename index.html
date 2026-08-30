@@ -956,7 +956,7 @@
           <div class="statgrid" id="admStats">
             <div class="stat"><div class="n">—</div><div class="l">Nutzer</div></div>
             <div class="stat"><div class="n">—</div><div class="l">Ankündigungen</div></div>
-            <div class="stat"><div class="n">—</div><div class="l">Tickets</div></div>
+            <div class="stat"><div class="n">—</div><div class="l">Discord User Log</div></div>
             <div class="stat"><div class="n">—</div><div class="l">Sicherheits-Events</div></div>
             <div class="stat"><div class="n">—</div><div class="l">Aktive Sessions</div></div>
           </div>
@@ -1253,17 +1253,18 @@
       </div>
       <div class="panel" id="ticketPanel">
         <div class="panel-head">
-          <h2>Discord User Information</h2>
+         <h2>Discord User Log</h2>
           <div style="display:flex;align-items:center;gap:10px;"><span class="live">● LIVE</span><button type="button" class="section-toggle" id="ticketInfoToggle" aria-expanded="true" onclick="toggleUserInformation()">ZUKLAPPEN ▲</button></div>
         </div>
         <div class="ticket-info-collapse" id="ticketInfoCollapse"><div class="panel-body">
           <div class="ticket-form">
-            <div><label for="tk-name">Discord Name <span class="hint">(Pflichtfeld)</span></label><input type="text" id="tk-name" placeholder="z.B. NoxxZ_99" maxlength="64"></div>
-            <div><label for="tk-id">Discord ID <span class="hint">(falls vorhanden)</span></label><input type="text" id="tk-id" placeholder="z.B. 123456789012345678" maxlength="64"></div>
-            <div class="tf-info"><label for="tk-info">Weitere Informationen</label><textarea id="tk-info" placeholder="Was möchtest du mitteilen? …" maxlength="2000"></textarea></div>
-            <div class="tf-btn"><button type="submit" class="mg0" onclick="openTicket(event)">Abschicken</button><div id="tk-message" class="message"></div></div>
+            <div><label for="tk-name">Discord-Name <span class="hint">(Name oder ID erforderlich)</span></label><input type="text" id="tk-name" placeholder="z.B. NoxxZ_99" maxlength="64"></div>
+            <div><label for="tk-id">Discord-ID <span class="hint">(Name oder ID erforderlich)</span></label><input type="text" id="tk-id" placeholder="z.B. 123456789012345678" maxlength="64"></div>
+            <div class="tf-info"><label for="tk-reason">Grund <span class="hint">(Pflichtfeld)</span></label><textarea id="tk-reason" placeholder="Was hat die Person gemacht? …" maxlength="2000" required></textarea></div>
+            <div class="tf-info"><label for="tk-info">Weitere Informationen</label><textarea id="tk-info" placeholder="Weitere Informationen …" maxlength="2000"></textarea></div>
+            <div class="tf-btn"><button type="submit" class="mg0" id="tk-submit" onclick="openTicket(event)">Formular abschicken</button><div id="tk-message" class="message"></div></div>
           </div>
-          <div id="ticketList"><div class="empty">Keine Tickets vorhanden.</div></div>
+          <div id="ticketList"><div class="empty">Noch keine Meldungen vorhanden.</div></div>
         </div></div>
       </div>
     </div>
@@ -2622,7 +2623,7 @@
       document.getElementById('upUsername').textContent = '@' + u.username;
       document.getElementById('upBio').textContent = u.bio || '';
       document.getElementById('upBio').style.display = u.bio ? '' : 'none';
-      document.getElementById('upStats').textContent = 'Beiträge: ' + data.postsCount + '  ·  Tickets: ' + data.ticketsCount;
+       document.getElementById('upStats').textContent = 'Beiträge: ' + data.postsCount + '  ·  Discord User Log: ' + data.ticketsCount;
       const games = String(u.games || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 8);
       document.getElementById('upGames').innerHTML = games.length ? games.map(function (g) { return '<span class="games-chip">' + escapeHtml(g) + '</span>'; }).join('') : '';
       box.style.opacity = '';
@@ -2694,9 +2695,10 @@
       return '<div class="ticket ' + statusCls + '">' +
         '<div class="t-top"><span class="t-author">' + escapeHtml(t.author) + '</span>' +
         '<span class="t-status ' + statusCls + '">' + statusTxt + '</span></div>' +
-        '<div class="t-name">' + escapeHtml(t.discord_name) + '</div>' +
+        (t.discord_name ? '<div class="t-name">Name: ' + escapeHtml(t.discord_name) + '</div>' : '') +
         (t.discord_id ? '<div class="t-id">ID: ' + escapeHtml(t.discord_id) + '</div>' : '') +
-         (t.info ? '<button type="button" class="t-info-toggle" aria-expanded="true" onclick="toggleTicketInfo(' + t.id + ', this)">Einklappen ▲</button><div class="t-info-wrap" id="t-info-' + t.id + '"><div class="t-info-inner"><div class="t-info">' + escapeHtml(t.info) + '</div></div></div>' : '') +
+         (t.reason ? '<div class="t-info"><strong>Grund:</strong> ' + escapeHtml(t.reason) + '</div>' : '') +
+         (t.info ? '<button type="button" class="t-info-toggle" aria-expanded="true" onclick="toggleTicketInfo(' + t.id + ', this)">Weitere Infos ▲</button><div class="t-info-wrap" id="t-info-' + t.id + '"><div class="t-info-inner"><div class="t-info">' + escapeHtml(t.info) + '</div></div></div>' : '') +
         '<div class="t-time">' + escapeHtml(fmtTime(t.created_at)) + '</div>' +
         actions +
          '</div>';
@@ -2887,8 +2889,8 @@
         const meRole = getStoredUser().role;
         const isStaff = meRole === 'founder' || meRole === 'admin' || meRole === 'moderator';
         document.getElementById('ticketList').innerHTML = tickets.length
-          ? '<div class="ticketgrid">' + tickets.map(t => ticketHtml(t, isStaff)).join('') + '</div>'
-          : '<div class="empty">Keine Tickets vorhanden.</div>';
+           ? '<div class="ticketgrid">' + tickets.map(t => ticketHtml(t, isStaff)).join('') + '</div>'
+           : '<div class="empty">Noch keine Meldungen vorhanden.</div>';
       }
     }
 
@@ -2994,7 +2996,7 @@
       document.getElementById('prof-games').value = (u.games || '').split('\n').filter(Boolean).join('\n');
       renderGamesChips(u.games);
       document.getElementById('prof-stats').innerHTML =
-        'Beiträge: ' + (data.postsCount || 0) + '  ·  Tickets: ' + (data.ticketsCount || 0);
+         'Beiträge: ' + (data.postsCount || 0) + '  ·  Discord User Log: ' + (data.ticketsCount || 0);
       const prev = document.getElementById('prof-avatar-preview');
       if (u.avatar) {
         prev.src = u.avatar;
@@ -3165,16 +3167,20 @@
       if (!token) { doLogout(); return; }
       const name = document.getElementById('tk-name').value.trim();
       const id = document.getElementById('tk-id').value.trim();
+      const reason = document.getElementById('tk-reason').value.trim();
       const info = document.getElementById('tk-info').value.trim();
 
-      if (!name) { showMessage('tk-message', 'Bitte den Discord-Namen angeben.', 'error'); return; }
+      if (!name && !id) { showMessage('tk-message', 'Bitte Discord-Namen oder Discord-ID angeben.', 'error'); return; }
+      if (!reason) { showMessage('tk-message', 'Bitte einen Grund angeben.', 'error'); return; }
 
-      const data = await api('/api/tickets', { discordName: name, discordId: id, info }, token);
+      const data = await api('/api/tickets', { discordName: name, discordId: id, reason, info }, token);
       if (data.success) {
         document.getElementById('tk-name').value = '';
         document.getElementById('tk-id').value = '';
+        document.getElementById('tk-reason').value = '';
         document.getElementById('tk-info').value = '';
-        showMessage('tk-message', 'Ticket geöffnet.', 'success');
+        document.querySelectorAll('#ticketPanel input, #ticketPanel textarea, #tk-submit').forEach(function (el) { el.disabled = true; });
+        showMessage('tk-message', 'Formular abgeschickt. Die Angaben können nicht mehr geändert werden.', 'success');
         loadFeed();
       } else {
         showMessage('tk-message', data.error || 'Fehler.', 'error');
@@ -3186,7 +3192,7 @@
       loadFeed();
     }
     async function adminDeleteTicket(id) {
-      if (!confirm('Ticket wirklich löschen?')) return;
+       if (!confirm('Meldung wirklich löschen?')) return;
       await api('/api/admin/tickets/delete', { id }, getToken());
       loadFeed();
     }
@@ -3212,7 +3218,7 @@
       if (!data.overview) return;
       const o = data.overview;
       const labels = ['users', 'announcements', 'tickets', 'security', 'sessions'];
-      const names = ['Nutzer', 'Ankündigungen', 'Tickets', 'Sicherheits-Events', 'Aktive Sessions'];
+       const names = ['Nutzer', 'Ankündigungen', 'Discord User Log', 'Sicherheits-Events', 'Aktive Sessions'];
       const stats = document.getElementById('admStats');
       stats.innerHTML = labels.map((k, i) =>
         '<div class="stat"><div class="n">' + o[k] + '</div><div class="l">' + names[i] + '</div></div>'
@@ -3298,7 +3304,7 @@
       if (!confirm('Deine Kisten, Rewards und Ausrüstung wirklich löschen?')) return;
       const data = await api('/api/admin/chest/clear-self', {}, getToken());
       showMessage('adm-chest-msg', data.success ? 'Deine Kisten und Rewards wurden gelöscht.' : (data.error || 'Fehler.'), data.success ? 'success' : 'error');
-      if (data.success) {
+                   if (data.success) {
         localStorage.removeItem('user');
         const me = await apiGet('/api/me', getToken());
         if (me.user) { localStorage.setItem('user', JSON.stringify(me.user)); updateRankPill(me.user); applyWebsiteTheme(me.user); }
