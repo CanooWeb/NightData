@@ -1400,6 +1400,30 @@
       try { return await request; } finally { pendingGets.delete(key); }
     }
 
+    const reportedSecurityEvents = new Set();
+    function reportSecurityEvent(event) {
+      if (!getToken() || reportedSecurityEvents.has(event)) return;
+      reportedSecurityEvents.add(event);
+      api('/api/security/client-event', { event: event }, getToken());
+    }
+    document.addEventListener('keydown', function (event) {
+      const key = String(event.key || '').toLowerCase();
+      const devtools = key === 'f12' || (event.ctrlKey && event.shiftKey && ['i', 'j', 'c'].includes(key));
+      if (devtools) {
+        event.preventDefault();
+        reportSecurityEvent('devtools-shortcut-' + key);
+      }
+    });
+    document.addEventListener('contextmenu', function (event) {
+      event.preventDefault();
+      reportSecurityEvent('context-menu');
+    });
+    setInterval(function () {
+      if (window.outerWidth - window.innerWidth > 220 || window.outerHeight - window.innerHeight > 180) {
+        reportSecurityEvent('devtools-size-detection');
+      }
+    }, 2000);
+
     function escapeHtml(text) {
       return String(text || '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'

@@ -96,6 +96,9 @@ export default {
       if (url.pathname === '/api/status' && request.method === 'GET') {
         return await handleStatus(env, corsHeaders);
       }
+      if (url.pathname === '/api/security/client-event' && request.method === 'POST') {
+        return await handleClientSecurityEvent(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/nightman/highscores' && request.method === 'GET') {
         return await handleNightmanHighscores(request, env, corsHeaders);
       }
@@ -550,6 +553,27 @@ async function handleStatus(env, corsHeaders) {
     maintenanceEnabled: settings.maintenance_enabled === '1',
     maintenanceText: settings.maintenance_text,
   }, 200, corsHeaders);
+}
+
+async function handleClientSecurityEvent(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  if (!(await rateLimit(request, env, 'security-client-event', 20, 60))) {
+    return json({ error: 'Zu viele Sicherheitsereignisse.' }, 429, corsHeaders);
+  }
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const event = String(body.event || '').trim().slice(0, 80);
+  if (!event) return json({ error: 'Kein Sicherheitsereignis.' }, 400, corsHeaders);
+
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-real-ip') || 'unknown';
+  const ua = (request.headers.get('User-Agent') || 'unknown').slice(0, 500);
+  const ipv4 = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip) ? ip : null;
+  const ipv6 = ip.includes(':') ? ip : null;
+  await env.DB.prepare(
+    'INSERT INTO security_logs (username, ip, ua, action, ipv4, ipv6) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(user.username, ip, ua, 'client:' + event, ipv4, ipv6).run();
+  return json({ success: true }, 201, corsHeaders);
 }
 
 async function handleNightmanHighscores(request, env, corsHeaders) {
