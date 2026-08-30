@@ -50,7 +50,7 @@ function rollCosmetic(pool) {
 }
 
 const DEFAULTS = {
-  site_title: 'NightData',
+  site_title: 'NIGHTWEB',
   welcome_text: '',
   feed_enabled: '1',
   highlights_enabled: '1',
@@ -280,7 +280,7 @@ export default {
         return await handleAdminSettingsSet(request, env, corsHeaders);
       }
       if (url.pathname === '/' && request.method === 'GET') {
-        return json({ service: 'NightData API', status: 'online' }, 200, corsHeaders);
+        return json({ service: 'NIGHTWEB API', status: 'online' }, 200, corsHeaders);
       }
 
       return json({ error: 'Nicht gefunden.' }, 404, corsHeaders);
@@ -359,6 +359,7 @@ async function ensureSchema(env) {
     )
   `).run();
   await env.DB.prepare(`ALTER TABLE discord_tickets ADD COLUMN reason TEXT NOT NULL DEFAULT ''`).run().catch(() => {});
+  await env.DB.prepare("UPDATE settings SET value = 'NIGHTWEB' WHERE key = 'site_title' AND value = 'NightData'").run();
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS custom_roles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

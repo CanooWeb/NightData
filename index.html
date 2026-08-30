@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NightData</title>
+  <title>NIGHTWEB</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -819,7 +819,7 @@
   </div>
 
   <div class="card" id="loginCard">
-    <h1>NightData</h1>
+    <h1>NIGHTWEB</h1>
     <div class="subtitle">// SECURE ACCESS TERMINAL</div>
     <div class="divider"></div>
     <div class="tabs">
@@ -900,7 +900,7 @@
       <div class="welcome hidden" id="welcomeBanner"></div>
 
       <div class="hero">
-        <div class="hero-title" id="heroTitle">NightData</div>
+        <div class="hero-title" id="heroTitle">NIGHTWEB</div>
         <div class="hero-sub">// NIGHT DATA SYSTEM //</div>
       </div>
 
@@ -913,7 +913,7 @@
         <div class="panel-head"><h2>NIGHTMAN</h2><span class="live">JUMP RUN</span></div>
         <div class="panel-body">
           <canvas id="nightmanCanvas" class="nightman-canvas" width="640" height="150" aria-label="Nightman Minispiel"></canvas>
-          <div class="nightman-controls"><span>Doppelsprung · Orbs sammeln · Leertaste/Klick</span><button class="btn mini" id="nightmanStart" type="button" onclick="startNightman()">Start</button><span id="nightmanScore">SCORE 0 · BEST 0</span></div>
+          <div class="nightman-controls"><span>Orbs sammeln · Leertaste/Klick zum Springen</span><button class="btn mini" id="nightmanStart" type="button" onclick="startNightman()">Start</button><span id="nightmanScore">SCORE 0 · BEST 0</span></div>
         </div>
       </div>
 
@@ -1067,11 +1067,11 @@
           <h3>Einstellungen</h3>
           <div class="row">
             <label for="set-title">Seitentitel</label>
-            <input type="text" id="set-title" placeholder="NightData">
+            <input type="text" id="set-title" placeholder="NIGHTWEB">
           </div>
           <div class="row">
             <label for="set-welcome">Willkommens-Hinweis (für alle sichtbar)</label>
-            <input type="text" id="set-welcome" placeholder="z.B. Willkommen auf NightData …">
+            <input type="text" id="set-welcome" placeholder="z.B. Willkommen auf NIGHTWEB …">
           </div>
           <div class="checkrow"><input type="checkbox" id="set-registration"><label for="set-registration">Registrierung erlaubt</label></div>
           <div class="row">
@@ -2724,8 +2724,8 @@
     function applyConfig(config) {
        if (!config) return;
       maxImageMb = Number(config.maxImageMb) || 10;
-      document.title = config.siteTitle || 'NightData';
-       document.getElementById('heroTitle').textContent = config.siteTitle || 'NightData';
+       document.title = config.siteTitle || 'NIGHTWEB';
+       document.getElementById('heroTitle').textContent = config.siteTitle || 'NIGHTWEB';
        renderTopGames(config.topGames || []);
       const welcome = document.getElementById('welcomeBanner');
       if (config.welcomeText) {
@@ -2748,7 +2748,7 @@
 
     let nightmanFrame = null;
     let nightmanRunning = false;
-    let nightmanPlayer = { y: 108, vy: 0, jumps: 0 };
+    let nightmanPlayer = { y: 108, vy: 0 };
     let nightmanObstacles = [];
     let nightmanOrbs = [];
     let nightmanScoreValue = 0;
@@ -2757,13 +2757,13 @@
     let nightmanLast = 0;
     function nightmanJump() {
       if (!nightmanRunning) { startNightman(); return; }
-      if (nightmanPlayer.jumps < 2) { nightmanPlayer.vy = nightmanPlayer.jumps ? -350 : -410; nightmanPlayer.jumps++; }
+      if (nightmanPlayer.y >= 107) nightmanPlayer.vy = -410;
     }
     function startNightman() {
       const canvas = document.getElementById('nightmanCanvas');
       if (!canvas) return;
       nightmanRunning = true;
-      nightmanPlayer = { y: 108, vy: 0, jumps: 0 };
+      nightmanPlayer = { y: 108, vy: 0 };
       nightmanObstacles = [];
       nightmanOrbs = [];
       nightmanScoreValue = 0;
@@ -2782,7 +2782,7 @@
       const speed = 190 + Math.min(nightmanScoreValue * 1.8, 180);
       nightmanPlayer.vy += 980 * dt;
       nightmanPlayer.y += nightmanPlayer.vy * dt;
-      if (nightmanPlayer.y > 108) { nightmanPlayer.y = 108; nightmanPlayer.vy = 0; nightmanPlayer.jumps = 0; }
+      if (nightmanPlayer.y > 108) { nightmanPlayer.y = 108; nightmanPlayer.vy = 0; }
       nightmanObstacles.forEach(function (o) { o.x -= speed * dt; });
       nightmanOrbs.forEach(function (o) { o.x -= speed * dt; o.spin += dt * 5; });
       const last = nightmanObstacles[nightmanObstacles.length - 1];
@@ -3481,7 +3481,7 @@
     async function adminSaveSettings() {
       const parsedDur = parseDuration(document.getElementById('set-anndur').value);
       const settings = {
-        site_title: document.getElementById('set-title').value.trim() || 'NightData',
+                     site_title: document.getElementById('set-title').value.trim() || 'NIGHTWEB',
         welcome_text: document.getElementById('set-welcome').value.trim(),
         allow_registration: document.getElementById('set-registration').checked ? '1' : '0',
         max_image_mb: String(Number(document.getElementById('set-maxmb').value) || 10),
