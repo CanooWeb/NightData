@@ -2854,6 +2854,13 @@
     let nightmanRunTime = 0;
     let nightmanSubmitted = false;
     let nightmanLast = 0;
+    const NIGHTMAN_BIOMES = [
+      { name: 'NEON CITY', top: '#050615', bottom: '#261542', ground: '#7ae0e0', hazard: '#ff4d6d' },
+      { name: 'MOON FOREST', top: '#061516', bottom: '#123c35', ground: '#7bd389', hazard: '#ff9e5e' },
+      { name: 'FROST MOON', top: '#071323', bottom: '#19365a', ground: '#d8e2f0', hazard: '#7ae0e0' },
+      { name: 'EMBER WASTES', top: '#1a0b0b', bottom: '#4a1d22', ground: '#ffd166', hazard: '#ff5252' },
+      { name: 'VOID RIFT', top: '#11051d', bottom: '#35104c', ground: '#c9a4ff', hazard: '#ff4d6d' }
+    ];
     function nightmanJump() {
       if (!nightmanRunning) { startNightman(); return; }
       if (nightmanPlayer.y >= 107) nightmanPlayer.vy = -410;
@@ -2883,13 +2890,15 @@
       nightmanRunTime += dt;
       const level = 1 + Math.floor(nightmanScoreValue / 15);
       const speed = 190 + Math.min(level * 18 + nightmanScoreValue * 1.2, 360);
+      const biome = NIGHTMAN_BIOMES[Math.min(Math.floor((level - 1) / 2), NIGHTMAN_BIOMES.length - 1)];
       nightmanPlayer.vy += 980 * dt;
       nightmanPlayer.y += nightmanPlayer.vy * dt;
       if (nightmanPlayer.y > 108) { nightmanPlayer.y = 108; nightmanPlayer.vy = 0; }
       nightmanObstacles.forEach(function (o) { o.x -= speed * dt; });
       nightmanOrbs.forEach(function (o) { o.x -= speed * dt; o.spin += dt * 5; });
       const last = nightmanObstacles[nightmanObstacles.length - 1];
-      if (!last || last.x < 390) {
+      const spawnGap = 390 + Math.min((speed - 190) * .65, 240);
+      if (!last || last.x < spawnGap) {
         const flying = Math.random() < .28;
         nightmanObstacles.push({ x: 650, w: flying ? 26 : 16 + Math.random() * 18, h: flying ? 14 : 22 + Math.random() * 30, y: flying ? 58 + Math.random() * 28 : 130, type: flying ? 'bat' : (Math.random() < .35 ? 'pillar' : 'spike') });
         if (Math.random() < .75) nightmanOrbs.push({ x: 670, y: 55 + Math.random() * 48, spin: 0 });
@@ -2900,15 +2909,16 @@
       const hit = nightmanObstacles.some(function (o) { const oy = o.type === 'bat' ? o.y : o.y - o.h; return playerBox.x < o.x + o.w - 3 && playerBox.x + playerBox.w > o.x + 3 && playerBox.y < oy + o.h && playerBox.y + playerBox.h > oy + 3; });
       nightmanOrbs = nightmanOrbs.filter(function (o) { const got = Math.abs(o.x - 80) < 25 && Math.abs(o.y - (nightmanPlayer.y + 12)) < 28; if (got) { nightmanScoreValue += 5 + Math.min(nightmanCombo, 10); nightmanCombo++; } return !got && o.x > -20; });
       ctx.clearRect(0, 0, 640, 150);
-      const gradient = ctx.createLinearGradient(0, 0, 0, 150); gradient.addColorStop(0, '#050615'); gradient.addColorStop(.65, '#171332'); gradient.addColorStop(1, '#261542'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 640, 150);
-      ctx.fillStyle = 'rgba(255,238,180,.8)'; ctx.beginPath(); ctx.arc(540, 32, 18, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#080b1d'; ctx.beginPath(); ctx.arc(548, 27, 17, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(122,224,224,.35)'; ctx.fillRect(0, 130, 640, 2);
+      const gradient = ctx.createLinearGradient(0, 0, 0, 150); gradient.addColorStop(0, biome.top); gradient.addColorStop(1, biome.bottom); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 640, 150);
+      ctx.fillStyle = 'rgba(255,238,180,.8)'; ctx.beginPath(); ctx.arc(540, 32, 18, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = biome.top; ctx.beginPath(); ctx.arc(548, 27, 17, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.22)'; for (let x = 0; x < 640; x += 42 + (level % 3) * 6) { const h = 18 + ((x * 7 + level * 13) % 34); ctx.fillRect(x, 130 - h, 26, h); }
+      ctx.fillStyle = biome.ground; ctx.globalAlpha = .45; ctx.fillRect(0, 130, 640, 2); ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(139,63,240,.35)'; ctx.fillRect(0, 126, 640, 4);
       nightmanOrbs.forEach(function (o) { ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.spin); ctx.fillStyle = '#ffd166'; ctx.shadowColor = '#ffd166'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(6, 0); ctx.lineTo(0, 7); ctx.lineTo(-6, 0); ctx.closePath(); ctx.fill(); ctx.restore(); });
-      nightmanObstacles.forEach(function (o) { ctx.fillStyle = o.type === 'bat' ? '#ff4d6d' : '#8b3ff0'; if (o.type === 'bat') { ctx.beginPath(); ctx.moveTo(o.x, o.y + 8); ctx.lineTo(o.x + 9, o.y); ctx.lineTo(o.x + 13, o.y + 7); ctx.lineTo(o.x + 19, o.y); ctx.lineTo(o.x + o.w, o.y + 8); ctx.lineTo(o.x + 18, o.y + o.h); ctx.lineTo(o.x + 8, o.y + o.h); ctx.closePath(); ctx.fill(); } else if (o.type === 'spike') { ctx.beginPath(); ctx.moveTo(o.x, 130); ctx.lineTo(o.x + o.w / 2, 130 - o.h); ctx.lineTo(o.x + o.w, 130); ctx.fill(); } else ctx.fillRect(o.x, o.y - o.h, o.w, o.h); });
+      nightmanObstacles.forEach(function (o) { ctx.fillStyle = o.type === 'bat' ? biome.hazard : biome.ground; if (o.type === 'bat') { ctx.beginPath(); ctx.moveTo(o.x, o.y + 8); ctx.lineTo(o.x + 9, o.y); ctx.lineTo(o.x + 13, o.y + 7); ctx.lineTo(o.x + 19, o.y); ctx.lineTo(o.x + o.w, o.y + 8); ctx.lineTo(o.x + 18, o.y + o.h); ctx.lineTo(o.x + 8, o.y + o.h); ctx.closePath(); ctx.fill(); } else if (o.type === 'spike') { ctx.beginPath(); ctx.moveTo(o.x, 130); ctx.lineTo(o.x + o.w / 2, 130 - o.h); ctx.lineTo(o.x + o.w, 130); ctx.fill(); } else ctx.fillRect(o.x, o.y - o.h, o.w, o.h); });
       const px = 80, py = nightmanPlayer.y, step = Math.sin(nightmanRunTime * 18) * 5; ctx.save(); ctx.translate(px, py); ctx.strokeStyle = '#111126'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-4, 20); ctx.lineTo(-7 + step, 31); ctx.moveTo(4, 20); ctx.lineTo(7 - step, 31); ctx.stroke(); ctx.fillStyle = '#090b19'; ctx.beginPath(); ctx.moveTo(-15, 30); ctx.lineTo(-10, 7); ctx.lineTo(-8, -5); ctx.lineTo(0, -13); ctx.lineTo(9, -5); ctx.lineTo(10, 7); ctx.lineTo(18, 31); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#8b3ff0'; ctx.beginPath(); ctx.moveTo(-13, 30); ctx.lineTo(-8, 10); ctx.lineTo(0, 18); ctx.lineTo(10, 8); ctx.lineTo(16, 30); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#c9a4ff'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#111126'; ctx.beginPath(); ctx.arc(0, -3, 10, Math.PI, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#7ae0e0'; ctx.fillRect(-5, -1, 3, 2); ctx.fillRect(3, -1, 3, 2); ctx.restore();
       const score = Math.floor(nightmanScoreValue), best = Math.max(nightmanBest, score); if (best !== nightmanBest) { nightmanBest = best; localStorage.setItem('nightmanBest', String(best)); }
-      document.getElementById('nightmanScore').textContent = 'LEVEL ' + level + ' · SCORE ' + score + ' · BEST ' + nightmanBest;
+      document.getElementById('nightmanScore').textContent = biome.name + ' · LEVEL ' + level + ' · SCORE ' + score + ' · BEST ' + nightmanBest;
       if (hit) { nightmanRunning = false; document.getElementById('nightmanStart').textContent = 'Nochmal'; if (!nightmanSubmitted) { nightmanSubmitted = true; submitNightmanScore(score); } return; }
       nightmanFrame = requestAnimationFrame(nightmanLoop);
     }
