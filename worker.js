@@ -96,6 +96,12 @@ export default {
       if (url.pathname === '/api/status' && request.method === 'GET') {
         return await handleStatus(env, corsHeaders);
       }
+      if (url.pathname === '/api/presence' && request.method === 'POST') {
+        return await handlePresenceHeartbeat(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/presence' && request.method === 'GET') {
+        return await handlePresenceCount(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/security/client-event' && request.method === 'POST') {
         return await handleClientSecurityEvent(request, env, corsHeaders);
       }
@@ -403,6 +409,13 @@ async function ensureSchema(env) {
     )
   `).run();
   await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS online_presence (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      last_seen INTEGER NOT NULL
+    )
+  `).run();
+  await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS friend_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       from_user TEXT NOT NULL,
@@ -553,6 +566,27 @@ async function handleStatus(env, corsHeaders) {
     maintenanceEnabled: settings.maintenance_enabled === '1',
     maintenanceText: settings.maintenance_text,
   }, 200, corsHeaders);
+}
+
+async function handlePresenceHeartbeat(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const token = (request.headers.get('Authorization') || '').replace('Bearer ', '').trim();
+  const now = Date.now();
+  await env.DB.prepare('INSERT INTO online_presence (token, user_id, last_seen) VALUES (?, ?, ?) ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id, last_seen = excluded.last_seen')
+    .bind(token, user.id, now).run();
+  await env.DB.prepare('DELETE FROM online_presence WHERE last_seen < ?').bind(now - 120000).run();
+  const row = await env.DB.prepare('SELECT COUNT(DISTINCT user_id) AS count FROM online_presence WHERE last_seen >= ?').bind(now - 90000).first();
+  return json({ success: true, count: Number(row?.count) || 0 }, 200, corsHeaders);
+}
+
+async function handlePresenceCount(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const now = Date.now();
+  await env.DB.prepare('DELETE FROM online_presence WHERE last_seen < ?').bind(now - 120000).run();
+  const row = await env.DB.prepare('SELECT COUNT(DISTINCT user_id) AS count FROM online_presence WHERE last_seen >= ?').bind(now - 90000).first();
+  return json({ count: Number(row?.count) || 0 }, 200, corsHeaders);
 }
 
 async function handleClientSecurityEvent(request, env, corsHeaders) {

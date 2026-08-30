@@ -369,6 +369,9 @@
      .floatui .floatui-menu {
        position: absolute; top: 18px; right: 18px; pointer-events: auto;
      }
+     .live-users { position: fixed; top: 18px; left: 18px; z-index: 12; display: flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid rgba(122,224,224,.38); border-radius: 999px; background: rgba(11,13,22,.9); box-shadow: 0 8px 22px rgba(0,0,0,.35), 0 0 14px rgba(122,224,224,.1); color: #d9cdf2; font: 11px 'Share Tech Mono',monospace; letter-spacing: 1px; pointer-events: none; }
+     .live-users-dot { width: 7px; height: 7px; border-radius: 50%; background: #7bd389; box-shadow: 0 0 9px #7bd389; }
+     .live-users-count { color: #7ae0e0; font-weight: 700; }
     .floatui .floatui-admin {
       position: absolute; bottom: 18px; right: 18px; pointer-events: auto;
     }
@@ -890,8 +893,9 @@
     </form>
   </div>
 
-  <div class="floatui hidden" id="floatui">
-    <div class="rankpill" id="rankPill">
+   <div class="floatui hidden" id="floatui">
+     <div class="live-users" aria-live="polite"><span class="live-users-dot"></span><span><span id="liveUserCount">0</span> LIVE</span></div>
+     <div class="rankpill" id="rankPill">
       <img id="rankAvatar" class="rankavatar hidden" alt="">
       <span id="topUsername">—</span>
       <span class="role-badge" id="topRole">LIMITED</span>
@@ -1442,6 +1446,14 @@
       try { return await request; } finally { pendingGets.delete(key); }
     }
 
+    async function sendPresenceHeartbeat() {
+      const token = getToken();
+      if (!token) return;
+      const data = await api('/api/presence', {}, token);
+      if (data && Number.isFinite(Number(data.count))) document.getElementById('liveUserCount').textContent = Number(data.count);
+    }
+    setInterval(sendPresenceHeartbeat, 30000);
+
     const reportedSecurityEvents = new Set();
     function reportSecurityEvent(event) {
       if (!getToken() || reportedSecurityEvents.has(event)) return;
@@ -1984,6 +1996,7 @@
       document.getElementById('caseOverlay').classList.add('show');
        loadCase();
        startCaseCd();
+       sendPresenceHeartbeat();
        loadNightmanHighscores();
     }
 
@@ -3208,8 +3221,9 @@
     function doLogout() {
       const token = getToken();
       if (token) api('/api/logout', {}, token);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+       localStorage.removeItem('token');
+       localStorage.removeItem('user');
+       document.getElementById('liveUserCount').textContent = '0';
       feedAnnSig = null;
       feedTicketSig = null;
       closeAdmin();
