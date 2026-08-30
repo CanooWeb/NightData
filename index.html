@@ -2897,11 +2897,11 @@
       nightmanObstacles.forEach(function (o) { o.x -= speed * dt; });
       nightmanOrbs.forEach(function (o) { o.x -= speed * dt; o.spin += dt * 5; });
       const last = nightmanObstacles[nightmanObstacles.length - 1];
-      const spawnGap = 390 + Math.min((speed - 190) * .65, 240);
-      if (!last || last.x < spawnGap) {
+      const spawnX = 650 + Math.min((speed - 190) * 1.35, 360);
+      if (!last || last.x < 390) {
         const flying = Math.random() < .28;
-        nightmanObstacles.push({ x: 650, w: flying ? 26 : 16 + Math.random() * 18, h: flying ? 14 : 22 + Math.random() * 30, y: flying ? 58 + Math.random() * 28 : 130, type: flying ? 'bat' : (Math.random() < .35 ? 'pillar' : 'spike') });
-        if (Math.random() < .75) nightmanOrbs.push({ x: 670, y: 55 + Math.random() * 48, spin: 0 });
+        nightmanObstacles.push({ x: spawnX, w: flying ? 26 : 16 + Math.random() * 18, h: flying ? 14 : 22 + Math.random() * 30, y: flying ? 58 + Math.random() * 28 : 130, type: flying ? 'bat' : (Math.random() < .35 ? 'pillar' : 'spike') });
+        if (Math.random() < .75) nightmanOrbs.push({ x: spawnX + 20, y: 55 + Math.random() * 48, spin: 0 });
       }
       if (nightmanObstacles[0] && nightmanObstacles[0].x < -40) { nightmanObstacles.shift(); nightmanScoreValue++; nightmanCombo++; }
       nightmanScoreValue += dt * .7;
