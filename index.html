@@ -286,7 +286,13 @@
      .top-game { position: relative; padding: 14px 12px 12px 42px; min-height: 82px; border: 1px solid rgba(255,209,102,.35); border-radius: 10px; background: linear-gradient(135deg, rgba(255,209,102,.1), rgba(16,18,30,.8)); }
      .top-game-rank { position: absolute; left: 12px; top: 14px; color: #ffd166; font: 900 22px 'Orbitron',sans-serif; }
      .top-game-name { color: #f0e7ff; font: 700 13px 'Orbitron',sans-serif; overflow-wrap: anywhere; }
-     .top-game-meta { margin-top: 8px; color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
+      .top-game-meta { margin-top: 8px; color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
+      .top-game { box-shadow: 0 0 18px rgba(255,209,102,.12), inset 0 0 18px rgba(255,209,102,.04); }
+      .game-picker { display: grid; gap: 10px; margin-bottom: 14px; }
+      .game-picker-row { display: flex; align-items: center; gap: 10px; }
+      .game-picker-row span { width: 26px; color: #ffd166; font: 700 15px 'Orbitron',sans-serif; }
+      .game-picker-row input { flex: 1; width: 100%; padding: 11px 13px; border: 1px solid rgba(255,209,102,.3); border-radius: 8px; font: 14px 'Share Tech Mono',monospace; color: #f0e7ff; background: rgba(10,11,16,.7); }
+      .game-picker-row input:focus { outline: none; border-color: #ffd166; box-shadow: 0 0 0 1px rgba(255,209,102,.35), 0 0 14px rgba(255,209,102,.15); }
       .nightman-canvas { display: block; width: 100%; height: 150px; border: 1px solid rgba(122,224,224,.35); border-radius: 10px; background: linear-gradient(#080c1c, #171332); cursor: pointer; touch-action: none; }
       .nightman-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: #8e7bb2; font: 11px 'Share Tech Mono',monospace; }
       .nightman-highscores { margin-top: 16px; padding: 12px 14px; border: 1px solid rgba(255,209,102,.28); border-radius: 10px; background: rgba(10,12,20,.55); }
@@ -1105,8 +1111,13 @@
              <input type="text" id="set-maintenance-text" placeholder="Unsere Seite ist aktuell in Wartungsarbeiten.">
            </div>
            <div class="row">
-             <label for="set-top-games">Top 3 Games aus Discord-User-Infos</label>
-             <textarea id="set-top-games" rows="4" maxlength="600" placeholder="Spiel | Discord-Name | Score&#10;Valorant | NoxxZ_99 | 24 Siege&#10;Minecraft | Can2201 | 180h"></textarea>
+             <label>Top 3 Games auswählen</label>
+             <div class="game-picker" id="gamePicker">
+               <div class="game-picker-row"><span>1</span><input id="set-game-1" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"></div>
+               <div class="game-picker-row"><span>2</span><input id="set-game-2" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"></div>
+               <div class="game-picker-row"><span>3</span><input id="set-game-3" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"></div>
+             </div>
+             <datalist id="gameCatalog"></datalist>
            </div>
            <button type="submit" id="btnSaveSettings" onclick="adminSaveSettings()">Einstellungen speichern</button>
           <div id="adm-settings-msg" class="message"></div>
@@ -1454,6 +1465,10 @@
       moderator: '#ffd166',
       member: '#9a6fd8'
     };
+
+    const GAME_CATALOG = [
+      'Counter-Strike 2', 'Dota 2', 'PUBG: Battlegrounds', 'Apex Legends', 'Dead by Daylight', 'Rust', 'Garry’s Mod', 'Terraria', 'Stardew Valley', 'Palworld', 'Baldur’s Gate 3', 'Elden Ring', 'Cyberpunk 2077', 'The Witcher 3', 'Grand Theft Auto V', 'Red Dead Redemption 2', 'Lethal Company', 'Phasmophobia', 'Sons of the Forest', 'The Forest', 'Raft', 'Project Zomboid', '7 Days to Die', 'Valheim', 'ARK: Survival Evolved', 'Factorio', 'Satisfactory', 'Cities: Skylines II', 'Euro Truck Simulator 2', 'Assetto Corsa', 'BeamNG.drive', 'Forza Horizon 5', 'Hogwarts Legacy', 'Hades II', 'Hollow Knight', 'Among Us', 'Left 4 Dead 2', 'Portal 2', 'Half-Life 2', 'Team Fortress 2', 'Warframe', 'Destiny 2', 'Overwatch 2', 'Minecraft', 'Fortnite', 'Valorant', 'League of Legends', 'Call of Duty: Warzone', 'Rocket League', 'Rainbow Six Siege', 'Roblox', 'FIFA', 'EA Sports FC 25', 'Final Fantasy XIV', 'World of Warcraft', 'The Elder Scrolls Online', 'Diablo IV', 'Genshin Impact', 'The Sims 4', 'Dead Space', 'Resident Evil 4', 'DOOM Eternal', 'God of War', 'Spider-Man Remastered', 'Sea of Thieves', 'Mortal Kombat 1', 'Tekken 8', 'Street Fighter 6', 'Fall Guys', 'The Finals', 'Hunt: Showdown 1896', 'Helldivers 2', 'Enshrouded', 'No Man’s Sky', 'Dont Starve Together', 'Killing Floor 2'
+    ];
 
     const COSMETICS = [
       { id: 'neon_blue',    cat: 'glow',  label: 'Neon Blau',        v: '#4da6ff', rarity: 'common' },
@@ -2784,7 +2799,7 @@
       if (!box) return;
       box.innerHTML = games.length ? games.map(function (g, i) {
         const meta = [g.discord, g.score].filter(Boolean).join(' · ');
-        return '<div class="top-game"><span class="top-game-rank">' + (i + 1) + '</span><div class="top-game-name">' + escapeHtml(g.game) + '</div><div class="top-game-meta">' + escapeHtml(meta || 'Discord-Info') + '</div></div>';
+        return '<div class="top-game"><span class="top-game-rank">' + (i + 1) + '</span><div class="top-game-name">' + escapeHtml(g.game) + '</div><div class="top-game-meta">' + escapeHtml(meta || 'TOP RANKING') + '</div></div>';
       }).join('') : '<div class="empty">Noch keine Top-Games eingetragen.</div>';
     }
 
@@ -3540,7 +3555,7 @@
       document.getElementById('set-maintenance').checked = s.maintenance_enabled === '1';
        document.getElementById('set-maintenance-text').value = s.maintenance_text || '';
        const topGames = JSON.parse(s.top_games || '[]');
-       document.getElementById('set-top-games').value = topGames.map(function (g) { return [g.game, g.discord, g.score].filter(Boolean).join(' | '); }).join('\n');
+       [1, 2, 3].forEach(function (i) { document.getElementById('set-game-' + i).value = topGames[i - 1]?.game || ''; });
       const annDur = document.getElementById('ann-duration');
       if (annDur && !annDur.value.trim()) annDur.value = formatDuration(s.ann_duration_default);
     }
@@ -3555,10 +3570,7 @@
         ann_duration_default: String(parsedDur || 0),
         maintenance_enabled: document.getElementById('set-maintenance').checked ? '1' : '0',
          maintenance_text: document.getElementById('set-maintenance-text').value.trim(),
-         top_games: JSON.stringify(document.getElementById('set-top-games').value.split('\n').map(function (line) {
-           const parts = line.split('|').map(function (part) { return part.trim(); });
-           return { game: parts[0] || '', discord: parts[1] || '', score: parts[2] || '' };
-         }).filter(function (g) { return g.game; }).slice(0, 3)),
+                     top_games: JSON.stringify([1, 2, 3].map(function (i) { return { game: document.getElementById('set-game-' + i).value.trim(), discord: '', score: '' }; }).filter(function (g) { return g.game; })),
       };
       const data = await api('/api/admin/settings', { settings }, getToken());
       if (data.success) {
@@ -3570,6 +3582,8 @@
         showMessage('adm-settings-msg', data.error || 'Fehler.', 'error');
       }
     }
+
+    document.getElementById('gameCatalog').innerHTML = GAME_CATALOG.map(function (game) { return '<option value="' + escapeHtml(game) + '"></option>'; }).join('');
 
     document.getElementById('ann-file').addEventListener('change', function () {
       previewFile('ann-file', 'ann-preview', 'ann-form-msg');
