@@ -762,8 +762,17 @@
     .admtable { width: 100%; border-collapse: collapse; font-family: 'Share Tech Mono',monospace; font-size: 12px; color: #b9a8d8; }
     .admtable th, .admtable td { text-align: left; padding: 8px 6px; border-bottom: 1px dashed rgba(139,63,240,0.2); vertical-align: middle; }
     .admtable th { color: #8b3ff0; letter-spacing: 1px; font-size: 11px; text-transform: uppercase; }
-    .admtable .kick { display: inline-flex; gap: 6px; flex-wrap: wrap; }
-    .banned-mark { color: #ff8f80; }
+     .admtable .kick { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+     .banned-mark { color: #ff8f80; }
+     .security-log-grid { display: grid; gap: 10px; }
+     .security-log-card { display: grid; grid-template-columns: 1.1fr 1.3fr 1.7fr 1fr 1fr; gap: 14px; align-items: center; padding: 14px 16px; border: 1px solid rgba(139,63,240,.28); border-radius: 12px; background: linear-gradient(135deg, rgba(24,18,44,.8), rgba(10,12,20,.75)); box-shadow: 0 8px 22px rgba(0,0,0,.2); }
+     .security-log-card:hover { border-color: rgba(122,224,224,.5); box-shadow: 0 8px 26px rgba(0,0,0,.35), 0 0 18px rgba(122,224,224,.1); }
+     .security-log-label { display: block; margin-bottom: 4px; color: #6b5b8b; font: 9px 'Share Tech Mono',monospace; letter-spacing: 1.5px; text-transform: uppercase; }
+     .security-log-value { color: #e3d9f5; font: 12px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
+     .security-log-user { color: #7ae0e0; font-family: 'Orbitron',sans-serif; font-weight: 700; }
+     .security-log-ip { color: #ffd166; }
+     .security-log-device { color: #c9a4ff; }
+     @media (max-width: 760px) { .security-log-card { grid-template-columns: 1fr 1fr; } .security-log-card > :first-child { grid-column: 1 / -1; } }
 
     .wide-form .form-group { margin-bottom: 14px; }
     .wide-form textarea { width: 100%; min-height: 70px; padding: 12px 14px; border: 1px solid #2a2d3a; border-radius: 8px; font-size: 14px; font-family: 'Share Tech Mono',monospace; color: #b18bf0; background: rgba(10,11,16,0.7); resize: vertical; transition: border-color .3s; }
@@ -3506,16 +3515,17 @@
     async function loadAdminSecurity() {
       const data = await apiGet('/api/admin/security', getToken());
       if (!data.logs) return;
+      function deviceLabel(ua) {
+        const value = String(ua || '');
+        const os = /Android/i.test(value) ? 'Android' : /iPhone|iPad/i.test(value) ? 'iOS' : /Windows/i.test(value) ? 'Windows' : /Mac OS/i.test(value) ? 'macOS' : /Linux/i.test(value) ? 'Linux' : 'Unbekanntes System';
+        const browser = /Edg\//i.test(value) ? 'Edge' : /Chrome\//i.test(value) ? 'Chrome' : /Firefox\//i.test(value) ? 'Firefox' : /Safari\//i.test(value) ? 'Safari' : 'Unbekannter Browser';
+        return os + ' · ' + browser;
+      }
       const rows = data.logs.map(l => {
-        let ipCell;
-        if (l.ipv4 && l.ipv6) ipCell = 'IPv4: ' + l.ipv4 + '\nIPv6: ' + l.ipv6;
-        else if (l.ipv4) ipCell = 'IPv4: ' + l.ipv4;
-        else if (l.ipv6) ipCell = 'IPv6: ' + l.ipv6;
-        else ipCell = l.ip || '—';
-        return '<tr><td>' + escapeHtml(l.username) + '</td><td style="white-space:pre-wrap">' + escapeHtml(ipCell) + '</td><td>' + escapeHtml(l.action) + '</td><td>' + escapeHtml(fmtTime(l.created_at)) + '</td></tr>';
+        return '<div class="security-log-card"><div><span class="security-log-label">Benutzer</span><span class="security-log-value security-log-user">' + escapeHtml(l.username || '—') + '</span></div><div><span class="security-log-label">IPv4-Adresse</span><span class="security-log-value security-log-ip">' + escapeHtml(l.ipv4 || (l.ip && l.ip.indexOf(':') === -1 ? l.ip : 'Nicht erkannt')) + '</span></div><div><span class="security-log-label">Gerät</span><span class="security-log-value security-log-device">' + escapeHtml(deviceLabel(l.ua)) + '</span></div><div><span class="security-log-label">Ereignis</span><span class="security-log-value">' + escapeHtml(l.action) + '</span></div><div><span class="security-log-label">Zeitpunkt</span><span class="security-log-value">' + escapeHtml(fmtTime(l.created_at)) + '</span></div></div>';
       }).join('');
       document.getElementById('admSecurityList').innerHTML =
-        '<table class="admtable"><tr><th>Nutzer</th><th>IP</th><th>Aktion</th><th>Zeit</th></tr>' + rows + '</table>';
+        rows ? '<div class="security-log-grid">' + rows + '</div>' : '<div class="empty">Noch keine Sicherheitsereignisse vorhanden.</div>';
     }
 
     async function loadAdminSettings() {
