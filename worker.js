@@ -96,6 +96,12 @@ export default {
       if (url.pathname === '/api/status' && request.method === 'GET') {
         return await handleStatus(env, corsHeaders);
       }
+      if (url.pathname === '/api/nightman/highscores' && request.method === 'GET') {
+        return await handleNightmanHighscores(request, env, corsHeaders);
+      }
+      if (url.pathname === '/api/nightman/highscores' && request.method === 'POST') {
+        return await handleNightmanScore(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/troll/poll' && request.method === 'GET') {
         return await handleTrollPoll(request, env, corsHeaders);
       }
@@ -385,6 +391,15 @@ async function ensureSchema(env) {
     )
   `).run();
   await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS nightman_highscores (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+  await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS friend_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       from_user TEXT NOT NULL,
@@ -535,6 +550,34 @@ async function handleStatus(env, corsHeaders) {
     maintenanceEnabled: settings.maintenance_enabled === '1',
     maintenanceText: settings.maintenance_text,
   }, 200, corsHeaders);
+}
+
+async function handleNightmanHighscores(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  const scores = (await env.DB.prepare(
+    'SELECT username, score, created_at FROM nightman_highscores ORDER BY score DESC, id ASC LIMIT 3'
+  ).all()).results;
+  return json({ scores }, 200, corsHeaders);
+}
+
+async function handleNightmanScore(request, env, corsHeaders) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
+  let body = {};
+  try { body = await request.json(); } catch (err) {}
+  const score = Math.floor(Number(body.score));
+  if (!Number.isSafeInteger(score) || score < 1 || score > 1000000) {
+    return json({ error: 'Ungültiger Highscore.' }, 400, corsHeaders);
+  }
+  const best = await env.DB.prepare('SELECT id, score FROM nightman_highscores WHERE user_id = ? ORDER BY score DESC LIMIT 1').bind(user.id).first();
+  if (best && score <= best.score) return json({ success: true, improved: false }, 200, corsHeaders);
+  if (best) {
+    await env.DB.prepare('UPDATE nightman_highscores SET username = ?, score = ?, created_at = datetime(\'now\') WHERE id = ?').bind(user.username, score, best.id).run();
+  } else {
+    await env.DB.prepare('INSERT INTO nightman_highscores (user_id, username, score) VALUES (?, ?, ?)').bind(user.id, user.username, score).run();
+  }
+  return json({ success: true, improved: true }, 201, corsHeaders);
 }
 
 async function handleTrollPoll(request, env, corsHeaders) {
