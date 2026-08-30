@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+     * { margin: 0; padding: 0; box-sizing: border-box; }
+     button { min-width: 40px; min-height: 40px; touch-action: manipulation; }
 
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
@@ -167,7 +168,7 @@
     .vignette { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%); }
 
     .tabs { display: flex; margin-bottom: 24px; border-bottom: 2px solid #2a2d3a; }
-    .tabs button { flex: 1; padding: 12px; border: none; background: none; font-family: 'Orbitron','Segoe UI',sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #6a3bb8; cursor: pointer; transition: color .3s, text-shadow .3s; }
+     .tabs button { flex: 1; min-height: 48px; padding: 12px 16px; border: none; background: none; font-family: 'Orbitron','Segoe UI',sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #6a3bb8; cursor: pointer; transition: color .3s, text-shadow .3s; touch-action: manipulation; }
     .tabs button:hover { color: #8e5af0; text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.8); }
     .tabs button.active { color: #8b3ff0; border-bottom: 3px solid #8b3ff0; margin-bottom: -2px; text-shadow: 0 0 6px rgba(0,0,0,0.95), 0 0 16px rgba(0,0,0,0.85), 0 0 30px rgba(0,0,0,0.7); }
 
@@ -178,7 +179,7 @@
     .form-group input { width: 100%; padding: 12px 14px; border: 1px solid #2a2d3a; border-radius: 8px; font-size: 15px; font-family: 'Share Tech Mono',monospace; color: #b18bf0; background: rgba(10,11,16,0.7); transition: border-color .3s; }
     .form-group input::placeholder { color: #4b3d66; opacity: 1; }
     .form-group input:focus { outline: none; border-color: #8b3ff0; box-shadow: 0 0 0 1px rgba(139,63,240,0.4), 0 0 16px rgba(139,63,240,0.25), inset 0 0 8px rgba(139,63,240,0.1); }
-    button[type="submit"] { width: 100%; padding: 14px; border: 1px solid rgba(139,63,240,0.6); border-radius: 8px; background: linear-gradient(135deg, rgba(124,92,191,0.3) 0%, rgba(74,91,208,0.3) 100%); color: #c9a4ff; font-family: 'Orbitron','Segoe UI',sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; margin-top: 6px; transition: filter .3s, box-shadow .3s, border-color .3s; text-shadow: 0 0 8px rgba(0,0,0,0.95), 0 0 22px rgba(0,0,0,0.8); }
+     button[type="submit"] { width: 100%; min-height: 48px; padding: 14px 18px; border: 1px solid rgba(139,63,240,0.6); border-radius: 8px; background: linear-gradient(135deg, rgba(124,92,191,0.3) 0%, rgba(74,91,208,0.3) 100%); color: #c9a4ff; font-family: 'Orbitron','Segoe UI',sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; margin-top: 6px; transition: filter .3s, box-shadow .3s, border-color .3s; text-shadow: 0 0 8px rgba(0,0,0,0.95), 0 0 22px rgba(0,0,0,0.8); touch-action: manipulation; }
     button[type="submit"]:hover { filter: brightness(1.25); box-shadow: 0 0 18px rgba(139,63,240,0.45); border-color: rgba(139,63,240,1); }
     button[type="submit"]:active { transform: scale(0.985); }
     button[type="submit"].mg0 { margin-top: 0; }
@@ -210,11 +211,11 @@
     .builtin-mark { font-size: 10px; color: #4b3d66; letter-spacing: 1px; }
     .adm-roles-table input[type="color"] { width: 48px; height: 30px; padding: 0; border: 1px solid #2a2d3a; border-radius: 6px; background: rgba(10,11,16,0.7); cursor: pointer; }
 
-    .btn { padding: 8px 16px; border: 1px solid rgba(139,63,240,0.6); border-radius: 8px; background: rgba(124,92,191,0.15); color: #c9a4ff; font-family: 'Orbitron',sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: filter .25s, box-shadow .25s; }
+     .btn { min-height: 42px; padding: 10px 18px; border: 1px solid rgba(139,63,240,0.6); border-radius: 8px; background: rgba(124,92,191,0.15); color: #c9a4ff; font-family: 'Orbitron',sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; line-height: 1.2; text-transform: uppercase; cursor: pointer; transition: filter .25s, box-shadow .25s, border-color .25s; touch-action: manipulation; }
     .btn:hover { filter: brightness(1.3); box-shadow: 0 0 14px rgba(139,63,240,0.4); }
     .btn.danger { border-color: rgba(255,77,109,0.6); color: #ff8f80; background: rgba(192,57,43,0.12); }
     .btn.ok { border-color: rgba(46,125,50,0.6); color: #7bd389; background: rgba(46,125,50,0.12); }
-    .btn.mini { padding: 4px 9px; font-size: 10px; }
+     .btn.mini { min-height: 40px; padding: 9px 13px; font-size: 10px; }
 
     .welcome {
       margin-bottom: 18px; padding: 12px 18px; text-align: center;
@@ -476,8 +477,6 @@
     .market-item .market-kind { color: #7ae0e0; font: 10px 'Share Tech Mono',monospace; letter-spacing: 1px; text-transform: uppercase; }
     .market-item .market-name { margin: 7px 0; font: 700 14px 'Orbitron',sans-serif; }
     .market-item .market-meta { color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; margin-bottom: 10px; }
-    .voiceoverlay { position: fixed; inset: 0; z-index: 35; display: none; overflow-y: auto; padding: 24px 16px 80px; background: radial-gradient(circle at 50% 0%, rgba(139,63,240,.16), transparent 42%), rgba(5,6,10,0.97); backdrop-filter: blur(16px); }
-    .voiceoverlay.show { display: block; }
     .maintenance-screen { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(5,6,10,.98); text-align: center; }
     .maintenance-screen.show { display: flex; pointer-events: auto; }
     body.maintenance-active { overflow: hidden; }
@@ -491,54 +490,10 @@
     .warning-card .warning-label { margin: 10px 0 18px; color: #ffb3b3; font: 11px 'Share Tech Mono',monospace; letter-spacing: 2px; }
     .warning-card .warning-reason { padding: 16px; color: #ffe7e7; border: 1px solid rgba(255,130,130,.3); border-radius: 10px; background: rgba(255,82,82,.09); font-size: 15px; line-height: 1.55; white-space: pre-wrap; }
     .warning-card .btn { margin-top: 22px; border-color: rgba(255,130,130,.65); color: #ffd4d4; background: rgba(255,82,82,.16); }
-    .voiceoverlay .shell { max-width: 820px; margin: 0 auto; }
-    .voiceoverlay .admin-head { border-color: rgba(122,224,224,.32); background: linear-gradient(135deg, rgba(122,224,224,.08), rgba(139,63,240,.08)); }
-    .voiceoverlay .admin-head .brand { color: #7ae0e0; text-shadow: 0 0 16px rgba(122,224,224,.35); }
-    .voiceoverlay .panel { border-color: rgba(122,224,224,.22); box-shadow: 0 18px 60px rgba(0,0,0,.58), 0 0 26px rgba(139,63,240,.12); }
-    .voiceoverlay .panel-head { background: linear-gradient(135deg, rgba(122,224,224,.1), rgba(139,63,240,.08)); border-bottom-color: rgba(122,224,224,.22); }
-    .voiceoverlay .panel-head h2 { color: #e4f8ff; }
-    .voice-create { display: grid; grid-template-columns: minmax(0,1fr) 120px 150px auto; gap: 10px; align-items: end; margin-bottom: 22px; padding: 14px; border: 1px solid rgba(139,63,240,.22); border-radius: 14px; background: rgba(7,9,17,.48); }
-    .voice-create .row { margin: 0; }
-    .voice-create label { color: #7ae0e0; font-size: 10px; letter-spacing: 1.5px; }
-    .voice-create input, .voice-create select { min-height: 42px; }
-    .voice-create button { min-height: 42px; white-space: nowrap; }
-    .voice-list { display: grid; gap: 12px; }
-    .voice-channel { display: flex; align-items: center; gap: 12px; padding: 15px; border: 1px solid rgba(139,63,240,0.35); border-radius: 14px; background: linear-gradient(135deg, rgba(19,15,34,.85), rgba(10,11,16,.72)); transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
-    .voice-channel:hover { transform: translateY(-2px); border-color: rgba(122,224,224,.55); box-shadow: 0 12px 28px rgba(0,0,0,.35), 0 0 20px rgba(122,224,224,.1); }
-    .voice-channel-info { flex: 1; min-width: 0; }
-    .voice-channel-name { color: #f0e7ff; font: 700 15px 'Orbitron',sans-serif; letter-spacing: .4px; overflow-wrap: anywhere; }
-    .voice-channel-meta { color: #8e7bb2; font: 10px 'Share Tech Mono',monospace; letter-spacing: 1px; margin-top: 6px; }
-    .voice-members { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
-    .voice-member { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 120px; padding: 7px 9px; border: 1px solid rgba(122,224,224,.25); border-radius: 9px; color: #b9a8d8; background: rgba(8,11,20,.55); font: 10px 'Share Tech Mono',monospace; }
-    .voice-member.me { color: #7ae0e0; border-color: rgba(122,224,224,.6); }
-    .voice-member-head { display: flex; align-items: center; gap: 5px; }
-    .voice-member-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(139,63,240,.5); }
-    .voice-member-role { color: #9a6fd8; font-size: 8px; letter-spacing: .7px; }
-    .voice-bars { display: inline-flex; align-items: center; gap: 2px; height: 11px; margin-left: 4px; vertical-align: -2px; opacity: .35; }
-    .voice-bars span { width: 2px; height: 3px; border-radius: 2px; background: #7ae0e0; transition: height .12s ease, opacity .12s ease; }
-    .voice-bars.speaking { opacity: 1; }
-    .voice-bars.speaking span { animation: voicebar .55s ease-in-out infinite alternate; }
-    .voice-bars.speaking span:nth-child(2) { animation-delay: -.35s; }
-    .voice-bars.speaking span:nth-child(3) { animation-delay: -.15s; }
-    .voice-bars.speaking span:nth-child(4) { animation-delay: -.45s; }
-    @keyframes voicebar { from { height: 3px; } to { height: 11px; } }
-    .voice-live { color: #7bd389; text-shadow: 0 0 8px rgba(123,211,137,.7); }
-    .voice-call-active { display: none; padding: 4px 7px; color: #7bd389; background: rgba(123,211,137,.08); border: 1px solid rgba(123,211,137,.45); border-radius: 6px; font: 9px 'Share Tech Mono',monospace; letter-spacing: 1px; cursor: pointer; animation: voicepulse 1.8s ease-in-out infinite; }
-    .voice-call-active.show { display: inline-block; }
-    @keyframes voicepulse { 50% { box-shadow: 0 0 12px rgba(123,211,137,.35); } }
-    .voice-settings { display: none; margin: 0 0 14px; padding: 12px 14px; border: 1px solid rgba(139,63,240,.35); border-radius: 10px; background: rgba(10,11,16,.6); color: #b9a8d8; font: 12px 'Share Tech Mono',monospace; }
-    .voice-settings.show { display: block; }
-    .voice-settings label { display: flex; align-items: center; gap: 9px; cursor: pointer; }
-    .voice-settings input { accent-color: #7ae0e0; transform: scale(1.2); }
-    .voice-channel > .btn { flex: 0 0 auto; min-width: 88px; }
-    .voice-member .btn { margin-top: 3px; width: 100%; }
-    .voice-member .voice-bars { align-self: flex-start; }
-    .voiceoverlay .empty { padding: 28px 10px; text-align: center; border: 1px dashed rgba(139,63,240,.28); border-radius: 12px; }
-    .voiceoverlay button:focus-visible, .voiceoverlay input:focus-visible, .voiceoverlay select:focus-visible { outline: 2px solid #7ae0e0; outline-offset: 2px; }
     button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid #8b3ff0; outline-offset: 2px; }
     .panel, .card, .topbar { transition: border-color .25s ease, box-shadow .25s ease; }
-    .btn { min-height: 36px; }
-    .btn:active { transform: translateY(1px); }
+     button, .btn { -webkit-tap-highlight-color: transparent; }
+     button:disabled, .btn:disabled { cursor: not-allowed; opacity: .55; }
     input, textarea, select { color-scheme: dark; }
     .topbar { background: linear-gradient(135deg, rgba(22,18,40,.94), rgba(12,15,27,.92)); }
     .topbar .op { display: inline-flex; align-items: center; gap: 8px; }
@@ -550,10 +505,9 @@
     .form-group input, .form-group textarea, .row input, .row textarea, .row select { transition: border-color .2s ease, box-shadow .2s ease, background .2s ease; }
     .form-group input:hover, .form-group textarea:hover, .row input:hover, .row textarea:hover, .row select:hover { border-color: rgba(139,63,240,.58); background-color: rgba(13,14,23,.86); }
     .bubble, .ticket, .market-item, .f-row { transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
-    .bubble:hover, .ticket:hover, .market-item:hover { transform: translateY(-2px); border-color: rgba(122,224,224,.42); }
+     .bubble:hover, .ticket:hover, .market-item:hover { border-color: rgba(122,224,224,.42); box-shadow: 0 10px 34px rgba(0,0,0,.55), 0 0 18px rgba(122,224,224,.12); }
     .section-divider { opacity: .8; }
     ::selection { color: #fff; background: rgba(139,63,240,.65); }
-    @media (max-width: 700px) { .voiceoverlay { padding: 10px 8px 70px; } .voice-create { grid-template-columns: 1fr 1fr; padding: 12px; } .voice-create button { grid-column: 1 / -1; } .voice-channel { align-items: stretch; flex-wrap: wrap; } .voice-channel-info { flex-basis: calc(100% - 4px); } .voice-channel > .btn { flex: 1 1 120px; } .voice-member { min-width: 0; flex: 1 1 130px; } }
     @media (max-width: 700px) { .floatui-market { left: 10px; top: 87px; } .market-form { grid-template-columns: 1fr; } .market-form .market-submit { grid-column: auto; } }
     .floatui-cases.case-button {
       width: 92px; min-height: 72px; padding: 7px 9px; display: flex; flex-direction: column;
@@ -567,8 +521,8 @@
     .case-button-count { position: absolute; top: -9px; right: -13px; min-width: 19px; height: 19px; padding: 0 4px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #ff4d6d; color: #fff; border: 1px solid #ffb3c0; box-shadow: 0 0 10px rgba(255,77,109,0.8); font: 700 11px 'Share Tech Mono', monospace; }
     .case-button-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; color: #7ae0e0; }
     .case-button-timer { min-height: 11px; color: #9a6fd8; font: 9px 'Share Tech Mono', monospace; letter-spacing: .5px; }
-    .case-button:hover .case-button-art { animation: chestSpin .7s ease-in-out; }
-    .case-button:hover .case-button-lid, .case-button.opening .case-button-lid { transform: rotateX(-115deg) translateY(-2px); }
+     .case-button:hover .case-button-art { filter: brightness(1.2); }
+     .case-button.opening .case-button-lid { transform: rotateX(-115deg) translateY(-2px); }
     .case-button.opening .case-button-art { animation: chestOpen .9s ease-in-out; }
     .case-button.opening .case-button-lock { opacity: 0; transition: opacity .15s; }
     @keyframes chestFloat { 0%,100% { transform: translateY(0) rotateZ(-2deg); } 50% { transform: translateY(-3px) rotateZ(2deg); } }
@@ -742,7 +696,7 @@
       .panel-head { padding: 12px 14px; }
       .panel-head h2 { font-size: 13px; letter-spacing: 2px; }
       .panel-body { padding: 14px; }
-      .adminoverlay, .profileoverlay, .marketoverlay, .dmoverlay, .voiceoverlay { width: 100%; height: 100dvh; min-height: 100dvh; padding: 12px 10px 70px; }
+       .adminoverlay, .profileoverlay, .marketoverlay, .dmoverlay { width: 100%; height: 100dvh; min-height: 100dvh; padding: 12px 10px 70px; }
       .admin-head { padding: 11px 13px; margin-bottom: 12px; }
       .admin-head .brand { font-size: 14px; letter-spacing: 2px; }
       .adm-tabs { padding: 10px 12px 0; overflow-x: auto; flex-wrap: nowrap; }
@@ -996,7 +950,7 @@
             <div class="stat"><div class="n">—</div><div class="l">Sicherheits-Events</div></div>
             <div class="stat"><div class="n">—</div><div class="l">Aktive Sessions</div></div>
           </div>
-          <div data-admin style="margin-top:22px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn danger" onclick="adminClearChat()">Alle Livechat-Nachrichten löschen</button><button class="btn danger" onclick="adminResetVoice()">Voice-Reset</button></div>
+           <div data-admin style="margin-top:22px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn danger" onclick="adminClearChat()">Alle Livechat-Nachrichten löschen</button></div>
           <div class="wide-form" data-admin style="margin-top:22px;">
             <h3>Trollsounds (nur mit Zustimmung)</h3>
             <p class="case-status">Sounds werden nur an Nutzer mit aktivierter Zustimmung gesendet und lokal begrenzt abgespielt.</p>
@@ -1151,7 +1105,7 @@
             <label>Statistiken</label>
             <div id="prof-stats" class="prof-stats">Lade…</div>
           </div>
-          <div class="checkrow"><input type="checkbox" id="prof-troll-opt-in"><label for="prof-troll-opt-in">Trollsounds von Admins erlauben (Lautstärke begrenzt)</label></div>
+          <div class="checkrow"><input type="checkbox" id="prof-troll-opt-in"><label for="prof-troll-opt-in">Trollsounds aktiv (zum Ausschalten deaktivieren)</label></div>
           <div class="form-group">
             <label for="prof-alias">Alias / Anzeigename</label>
             <input type="text" id="prof-alias" maxlength="32" placeholder="z.B. NoxxZ">
@@ -1296,9 +1250,7 @@
   <div class="chatpanel" id="chatPanel">
     <div class="chat-head">
        <span class="live-dot"></span>
-       <button type="button" class="voice-call-active" id="voiceCallActive" onclick="toggleVoiceOverlay()">ANRUF AKTIV</button>
        <span class="chat-title">&#9679; LIVE CHAT</span>
-       <button class="btn mini voice-chat-button" onclick="toggleVoiceOverlay()" title="Voicechat öffnen">VOICE</button>
        <button class="chat-close" onclick="toggleChat()" title="Ausblenden">&#10005;</button>
     </div>
     <div class="chat-msgs" id="chatMsgs"><div class="empty">Verbinde…</div></div>
@@ -1309,24 +1261,6 @@
     <div class="chat-tip" id="chatTip">Rollenfarben, Alias &amp; Profilbilder live</div>
   </div>
   <button class="chatmin hidden" id="chatMin" onclick="toggleChat()" title="Live-Chat öffnen">&#9679; CHAT</button>
-
-  <div class="voiceoverlay" id="voiceOverlay">
-    <div class="shell">
-      <div class="admin-head"><div class="brand">VOICE CHAT</div><div><button class="btn mini" onclick="toggleVoiceSettings()" title="Voice-Einstellungen">⚙</button> <button class="btn danger" onclick="toggleVoiceOverlay()">Schließen</button></div></div>
-      <div class="panel"><div class="panel-head"><h2>Sprachkanäle</h2><span class="live" id="voiceStatus">● BEREIT</span></div><div class="panel-body">
-        <div class="voice-settings" id="voiceSettings"><label><input type="checkbox" id="voiceNoiseSuppression" checked onchange="toggleVoiceNoiseSuppression(this.checked)"> Hintergrundgeräusche unterdrücken <span class="case-status">(Browser Noise Suppression)</span></label></div>
-        <h3>Kanal erstellen</h3>
-        <div class="voice-create">
-          <div class="row"><label for="voice-name">Name</label><input id="voice-name" maxlength="32" placeholder="z.B. Night Lounge"></div>
-          <div class="row"><label for="voice-limit">Max. Leute</label><input id="voice-limit" type="number" min="2" max="50" value="10"></div>
-          <div class="row"><label for="voice-open">Zugang</label><select id="voice-open"><option value="open">Offen</option><option value="friends">Nur Freunde</option><option value="closed">Geschlossen</option></select></div>
-          <button class="btn ok" onclick="createVoiceChannel()">Erstellen</button>
-        </div>
-        <div id="voice-msg" class="message"></div><div class="section-divider"></div>
-        <div class="voice-list" id="voiceChannels"><div class="empty">Lade Kanäle...</div></div>
-      </div></div>
-    </div>
-  </div>
 
   <div class="maintenance-screen" id="maintenanceScreen">
     <div class="maintenance-card">
@@ -1344,109 +1278,6 @@
   </div>
 
   <script>
-    (function () {
-      const blockedKeys = ['f12'];
-      const blockedCombos = [
-        { ctrl: true, shift: true, key: 'i' },
-        { ctrl: true, shift: true, key: 'j' },
-        { ctrl: true, shift: true, key: 'c' },
-        { ctrl: true, key: 'u' }
-      ];
-      let lastReport = 0;
-      let alerted = false;
-
-      function guardReport(action) {
-        const now = Date.now();
-        if (now - lastReport < 30000) return;
-        lastReport = now;
-        const token = localStorage.getItem('token');
-        detectPublicIps(function (ips) {
-          try {
-            fetch(API_BASE + '/api/console-alert', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
-              body: JSON.stringify({ action, ipv4: ips.ipv4, ipv6: ips.ipv6 }),
-              keepalive: true
-            }).catch(() => {});
-          } catch (e) {}
-        });
-      }
-
-      function detectPublicIps(cb) {
-        const out = { ipv4: '', ipv6: '' };
-        const tryFetch = function (url) {
-          return new Promise(function (resolve) {
-            try {
-              const ac = new AbortController();
-              const t = setTimeout(function () { ac.abort(); }, 5000);
-              fetch(url, { signal: ac.signal, cache: 'no-store' })
-                .then(function (r) { return r.text(); })
-                .then(function (txt) { clearTimeout(t); resolve((txt || '').trim()); })
-                .catch(function () { clearTimeout(t); resolve(''); });
-            } catch (e) { resolve(''); }
-          });
-        };
-        const looksIp = function (s) { return /^[0-9a-fA-F:.]+$/.test(s); };
-        Promise.all([
-          tryFetch('https://api.ipify.org').then(function (a) {
-            return looksIp(a) ? a : tryFetch('https://ipv4.icanhazip.com');
-          }),
-          tryFetch('https://api6.ipify.org').then(function (b) {
-            return looksIp(b) ? b : tryFetch('https://ipv6.icanhazip.com');
-          })
-        ]).then(function (r) {
-          out.ipv4 = r[0];
-          out.ipv6 = r[1];
-          cb(out);
-        });
-      }
-
-      try {
-        const suppress = function () {};
-        console.log = suppress; console.info = suppress; console.warn = suppress;
-        console.debug = suppress; console.error = suppress;
-      } catch (e) {}
-
-      document.addEventListener('contextmenu', function (e) {
-        e.preventDefault();
-        guardReport('rechtklick-versucht');
-      });
-
-      window.addEventListener('keydown', function (e) {
-        const k = (e.key || '').toLowerCase();
-        if (k === 'escape') {
-          document.getElementById('adminOverlay').classList.remove('show');
-          document.getElementById('main').classList.remove('blur');
-          document.getElementById('profileOverlay').classList.remove('show');
-          document.getElementById('dmOverlay').classList.remove('show');
-          document.getElementById('marketOverlay').classList.remove('show');
-          document.getElementById('voiceOverlay').classList.remove('show');
-          closeMobileMenu();
-          closeDmOverlay();
-          closeUserPopup();
-        }
-        let blocked = blockedKeys.includes(k);
-        if (!blocked) {
-          blocked = blockedCombos.some(c => !!e.ctrlKey === c.ctrl && !!e.shiftKey === c.shift && k === c.key);
-        }
-        if (blocked) {
-          e.preventDefault();
-          guardReport('inspection-versucht');
-        }
-      });
-
-      (function devtoolsWatch() {
-        setInterval(function () {
-          const start = performance.now();
-          debugger;
-          if (performance.now() - start > 100 && !alerted) {
-            alerted = true;
-            guardReport('devtools-geoeffnet');
-          }
-        }, 4000);
-      })();
-    })();
-
     function showTab(tab) {
       document.getElementById('tab-login').classList.toggle('active', tab === 'login');
       document.getElementById('tab-register').classList.toggle('active', tab === 'register');
@@ -1494,23 +1325,32 @@
         const res = await fetch(API_BASE + url, { method: 'POST', headers, body: JSON.stringify(body || {}) });
         const data = await res.json();
         if (!data || typeof data !== 'object') return { error: 'Ungültige Antwort.' };
+        if (!res.ok && !data.error) data.error = 'Anfrage fehlgeschlagen (' + res.status + ').';
         return data;
       } catch (err) {
         return { error: 'Server nicht erreichbar.' };
       }
     }
 
+    const pendingGets = new Map();
     async function apiGet(url, token) {
-      try {
-        const headers = {};
-        if (token) headers['Authorization'] = 'Bearer ' + token;
-        const res = await fetch(API_BASE + url, { headers });
-        const data = await res.json();
-        if (!data || typeof data !== 'object') return { error: 'Ungültige Antwort.' };
-        return data;
-      } catch (err) {
-        return { error: 'Server nicht erreichbar.' };
-      }
+      const key = url + '|' + (token || '');
+      if (pendingGets.has(key)) return pendingGets.get(key);
+      const request = (async function () {
+        try {
+          const headers = {};
+          if (token) headers['Authorization'] = 'Bearer ' + token;
+          const res = await fetch(API_BASE + url, { headers });
+          const data = await res.json();
+          if (!data || typeof data !== 'object') return { error: 'Ungültige Antwort.' };
+          if (!res.ok && !data.error) data.error = 'Anfrage fehlgeschlagen (' + res.status + ').';
+          return data;
+        } catch (err) {
+          return { error: 'Server nicht erreichbar.' };
+        }
+      })();
+      pendingGets.set(key, request);
+      try { return await request; } finally { pendingGets.delete(key); }
     }
 
     function escapeHtml(text) {
@@ -1601,7 +1441,11 @@
     function buildRoleColorMap(roles) {
       if (!roles || !roles.length) return;
       roleColorMap = {};
-      roles.forEach(function (r) { roleColorMap[r.name] = r.color; });
+       roles.forEach(function (r) {
+         const name = String(r.name || '').toLowerCase();
+         const color = String(r.color || '');
+         if (/^#[0-9a-f]{6}$/i.test(color)) roleColorMap[name] = color;
+       });
       applyBadgeColor();
     }
 
@@ -1648,17 +1492,18 @@
       document.getElementById('chatPanel').classList.remove('hidden');
       document.getElementById('chatMin').classList.add('hidden');
     }
-    function hideChat() {
-      document.getElementById('chatPanel').classList.add('hidden');
-      document.getElementById('chatMin').classList.add('hidden');
-    }
-    function toggleChat() {
-      const panel = document.getElementById('chatPanel');
-      const min = document.getElementById('chatMin');
-      const wasHidden = panel.classList.contains('hidden');
-      panel.classList.toggle('hidden', !wasHidden);
-      min.classList.toggle('hidden', wasHidden);
-    }
+     function hideChat() {
+       document.getElementById('chatPanel').classList.add('hidden');
+       document.getElementById('chatMin').classList.add('hidden');
+       stopChatPolling();
+     }
+     function toggleChat() {
+       const panel = document.getElementById('chatPanel');
+       const min = document.getElementById('chatMin');
+       const wasHidden = panel.classList.contains('hidden');
+       if (wasHidden) startChat();
+       else hideChat();
+     }
 
     let voiceChannelId = null;
     let voiceStream = null;
@@ -1881,7 +1726,7 @@
       if (!tip.getAttribute('data-normal')) tip.setAttribute('data-normal', tip.textContent);
       document.getElementById('chatMsgs').innerHTML = '<div class="empty">Verbinde…</div>';
       pollChat();
-      chatTimer = setInterval(pollChat, 800);
+       chatTimer = setInterval(pollChat, 500);
     }
 
     function stopChatPolling() {
@@ -1989,7 +1834,7 @@
       backDmThread();
       loadDmAll();
       if (dmTimer) clearInterval(dmTimer);
-      dmTimer = setInterval(loadDmAll, 1500);
+       dmTimer = setInterval(loadDmAll, 500);
     }
 
     function closeDmOverlay() {
@@ -2466,7 +2311,7 @@
       document.getElementById('dmThreadName').innerHTML = '';
       pollDmThread();
       if (dmThreadTimer) clearInterval(dmThreadTimer);
-      dmThreadTimer = setInterval(pollDmThread, 1000);
+       dmThreadTimer = setInterval(pollDmThread, 500);
     }
 
     function backDmThread() {
@@ -2974,10 +2819,10 @@
       updateDmSoundBtn();
       if (dmUnreadTimer) clearInterval(dmUnreadTimer);
       pollDmUnread();
-       dmUnreadTimer = setInterval(pollDmUnread, 1500);
+        dmUnreadTimer = setInterval(pollDmUnread, 500);
       if (reqUnreadTimer) clearInterval(reqUnreadTimer);
       pollReqUnread();
-       reqUnreadTimer = setInterval(pollReqUnread, 1500);
+        reqUnreadTimer = setInterval(pollReqUnread, 500);
     }
 
     function openAdmin() {
@@ -3096,6 +2941,8 @@
     }
 
     function doLogout() {
+      const token = getToken();
+      if (token) api('/api/logout', {}, token);
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       feedAnnSig = null;
@@ -3105,7 +2952,6 @@
       closeDmOverlay();
       closeUserPopup();
       closeCaseOverlay();
-      if (voiceChannelId) leaveVoiceChannel();
       stopChatPolling();
       hideChat();
       if (dmUnreadTimer) { clearInterval(dmUnreadTimer); dmUnreadTimer = null; }
@@ -3138,7 +2984,7 @@
     }
 
     async function uploadImage(file, token) {
-      const p = await api('/api/presign', {}, token);
+       const p = await api('/api/presign', { size: file.size, type: file.type }, token);
       if (!p.success) return null;
       const fd = new FormData();
       fd.append('folder', p.fields.folder);
@@ -3277,12 +3123,11 @@
           '<select class="role-select" ' + (self ? 'disabled' : '') + ' onchange="adminSetRole(' + u.id + ',this.value)">' +
           options +
           '</select>';
-        const voiceBtn = self ? '' : '<button class="btn mini ' + (u.voice_muted ? 'ok' : 'danger') + '" onclick="adminSetVoiceMute(' + u.id + ',' + (u.voice_muted ? 0 : 1) + ')">' + (u.voice_muted ? 'Voice entsperren' : 'Voice stummschalten') + '</button>';
         const warnBtn = self ? '' : '<button class="btn mini" onclick="adminWarnUser(' + u.id + ',\'' + escapeAttr(u.username) + '\')">Verwarnen</button>';
         const roleBtn = self
           ? ''
           : '<span class="kick">' +
-            voiceBtn + warnBtn +
+             warnBtn +
             '<button class="btn mini ' + (u.banned ? 'ok' : 'danger') + '" onclick="adminSetBan(' + u.id + ',' + (u.banned ? 0 : 1) + ')">' + (u.banned ? 'Entsperren' : 'Sperren') + '</button>' +
             '<button class="btn mini danger" onclick="adminDeleteUser(' + u.id + ',\'' + escapeHtml(u.username) + '\')">Löschen</button>' +
             '</span>';
@@ -3301,11 +3146,6 @@
     }
     async function adminSetBan(id, banned) {
       await api('/api/admin/users/ban', { id, banned }, getToken());
-      loadAdminUsers();
-    }
-    async function adminSetVoiceMute(id, muted) {
-      const data = await api('/api/admin/users/voice-mute', { id, muted: !!muted }, getToken());
-      if (!data.success) alert(data.error || 'Voice-Stummschaltung fehlgeschlagen.');
       loadAdminUsers();
     }
     async function adminWarnUser(id, username) {
@@ -3588,25 +3428,14 @@
       }
     })();
 
-    window.addEventListener('pagehide', function () {
-      if (!voiceChannelId || !getToken()) return;
-      fetch(API_BASE + '/api/voice/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
-        body: JSON.stringify({ channel_id: voiceChannelId }),
-        keepalive: true
-      }).catch(function () {});
-    });
-
     (function startPolling() {
       setInterval(function () {
         if (document.getElementById('main').classList.contains('active')) {
           loadFeed();
-          pollMaintenance();
           pollWarnings();
           pollTrollSounds();
         }
-      }, 2000);
+       }, 15000);
     })();
   </script>
 </body>

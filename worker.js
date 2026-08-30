@@ -86,6 +86,9 @@ export default {
       if (url.pathname === '/api/login' && request.method === 'POST') {
         return await handleLogin(request, env, corsHeaders);
       }
+      if (url.pathname === '/api/logout' && request.method === 'POST') {
+        return await handleLogout(request, env, corsHeaders);
+      }
       if (url.pathname === '/api/me' && request.method === 'GET') {
         return await handleMe(request, env, corsHeaders);
       }
@@ -203,17 +206,6 @@ export default {
       if (url.pathname === '/api/market/cancel' && request.method === 'POST') {
         return await handleMarketCancel(request, env, corsHeaders);
       }
-      if (url.pathname === '/api/voice' && request.method === 'GET') return await handleVoiceGet(request, env, corsHeaders);
-      if (url.pathname === '/api/voice/create' && request.method === 'POST') return await handleVoiceCreate(request, env, corsHeaders);
-      if (url.pathname === '/api/voice/join' && request.method === 'POST') return await handleVoiceJoin(request, env, corsHeaders);
-      if (url.pathname === '/api/voice/leave' && request.method === 'POST') return await handleVoiceLeave(request, env, corsHeaders);
-      if (url.pathname === '/api/voice/signal' && request.method === 'POST') return await handleVoiceSignal(request, env, corsHeaders);
-      if (url.pathname === '/api/voice/signals' && request.method === 'GET') return await handleVoiceSignals(request, env, corsHeaders);
-      if (url.pathname === '/api/voice/close' && request.method === 'POST') return await handleVoiceClose(request, env, corsHeaders);
-      if (url.pathname === '/api/admin/voice/mute' && request.method === 'POST') return await handleAdminVoiceMute(request, env, corsHeaders);
-      if (url.pathname === '/api/admin/voice/close' && request.method === 'POST') return await handleAdminVoiceClose(request, env, corsHeaders);
-      if (url.pathname === '/api/admin/voice/delete' && request.method === 'POST') return await handleAdminVoiceDelete(request, env, corsHeaders);
-      if (url.pathname === '/api/admin/voice/reset' && request.method === 'POST') return await handleAdminVoiceReset(request, env, corsHeaders);
       if (url.pathname === '/api/feed' && request.method === 'GET') {
         return await handleFeed(request, env, corsHeaders, settings);
       }
@@ -222,9 +214,6 @@ export default {
       }
       if (url.pathname === '/api/presign' && request.method === 'POST') {
         return await handlePresign(request, env, corsHeaders);
-      }
-      if (url.pathname === '/api/console-alert' && request.method === 'POST') {
-        return await handleConsoleAlert(request, env, corsHeaders);
       }
       if (url.pathname === '/api/tickets' && request.method === 'POST') {
         return await handleCreateTicket(request, env, corsHeaders);
@@ -246,9 +235,6 @@ export default {
       }
       if (url.pathname === '/api/admin/users/ban' && request.method === 'POST') {
         return await handleAdminUserBan(request, env, corsHeaders);
-      }
-      if (url.pathname === '/api/admin/users/voice-mute' && request.method === 'POST') {
-        return await handleAdminUserVoiceMute(request, env, corsHeaders);
       }
       if (url.pathname === '/api/admin/users/warn' && request.method === 'POST') {
         return await handleAdminUserWarn(request, env, corsHeaders);
@@ -448,8 +434,26 @@ async function ensureSchema(env) {
   await env.DB.prepare('ALTER TABLE users ADD COLUMN glow_item TEXT').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN color_item TEXT').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN nightcoins INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
-  await env.DB.prepare('ALTER TABLE users ADD COLUMN voice_muted INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
   await env.DB.prepare('ALTER TABLE users ADD COLUMN troll_opt_in INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
+  await env.DB.prepare('ALTER TABLE sessions ADD COLUMN expires_at TEXT').run().catch(() => {});
+  await env.DB.prepare("UPDATE sessions SET expires_at = datetime(created_at, '+30 days') WHERE expires_at IS NULL").run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT PRIMARY KEY, window_start INTEGER NOT NULL, hits INTEGER NOT NULL DEFAULT 0
+  )`).run();
+  const voiceRemoved = await env.DB.prepare("SELECT value FROM settings WHERE key = 'voice_removed'").first();
+  if (!voiceRemoved) {
+    await env.DB.batch([
+      env.DB.prepare('DROP TABLE IF EXISTS voice_signals'),
+      env.DB.prepare('DROP TABLE IF EXISTS voice_members'),
+      env.DB.prepare('DROP TABLE IF EXISTS voice_channels'),
+      env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('voice_removed', '1')"),
+    ]);
+  }
+  const trollDefaults = await env.DB.prepare("SELECT value FROM settings WHERE key = 'troll_defaults_v2'").first();
+  if (!trollDefaults) {
+    await env.DB.prepare('UPDATE users SET troll_opt_in = 1 WHERE troll_opt_in = 0').run();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('troll_defaults_v2', '1')").run();
+  }
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS warnings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -476,22 +480,6 @@ async function ensureSchema(env) {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_channels (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, owner TEXT NOT NULL,
-    max_users INTEGER NOT NULL DEFAULT 10, is_open INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`).run();
-  await env.DB.prepare('ALTER TABLE voice_channels ADD COLUMN friends_only INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
-  await env.DB.prepare('ALTER TABLE voice_channels ADD COLUMN last_empty_at TEXT').run().catch(() => {});
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_members (
-    channel_id INTEGER NOT NULL, username TEXT NOT NULL, joined_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY (channel_id, username)
-  )`).run();
-  await env.DB.prepare('ALTER TABLE voice_members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0').run().catch(() => {});
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS voice_signals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL, sender TEXT NOT NULL,
-    recipient TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now'))
-  )`).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_fr_to ON friend_requests (to_user)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_dm_recip ON dm_messages (recipient, read)').run();
   const seedRoles = [
@@ -523,6 +511,20 @@ async function getSettings(env) {
   return map;
 }
 
+async function rateLimit(request, env, scope, maxHits, windowSeconds) {
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-real-ip') || 'unknown';
+  const key = scope + ':' + ip.slice(0, 80);
+  const now = Math.floor(Date.now() / 1000);
+  const result = await env.DB.prepare(`
+    INSERT INTO rate_limits (key, window_start, hits) VALUES (?, ?, 1)
+    ON CONFLICT(key) DO UPDATE SET
+      hits = CASE WHEN window_start <= ? THEN 1 ELSE hits + 1 END,
+      window_start = CASE WHEN window_start <= ? THEN ? ELSE window_start END
+  `).bind(key, now, now - windowSeconds, now - windowSeconds, now).run();
+  const row = await env.DB.prepare('SELECT hits FROM rate_limits WHERE key = ?').bind(key).first();
+  return Number(row?.hits) <= maxHits;
+}
+
 async function handleStatus(env, corsHeaders) {
   const settings = await getSettings(env);
   return json({
@@ -552,10 +554,10 @@ async function getAuthUser(request, env) {
   const token = auth.replace('Bearer ', '').trim();
   if (!token) return null;
 
-  const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
+  const session = await env.DB.prepare("SELECT * FROM sessions WHERE token = ? AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))").bind(token).first();
   if (!session) return null;
 
-  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, glow_item, color_item, voice_muted, troll_opt_in FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, glow_item, color_item, troll_opt_in FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user || user.banned) return null;
 
   return user;
@@ -612,7 +614,7 @@ async function handleRegister(request, env, corsHeaders, settings) {
 
   const role = FOUNDERS.includes(username) ? 'founder' : 'member';
   const hash = await hashPassword(password);
-  const result = await env.DB.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').bind(username, hash, role).run();
+  const result = await env.DB.prepare('INSERT INTO users (username, password, role, troll_opt_in) VALUES (?, ?, ?, 1)').bind(username, hash, role).run();
   const user = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(result.meta.last_row_id).first();
 
   return json({ success: true, user }, 201, corsHeaders);
@@ -643,7 +645,7 @@ async function handleLogin(request, env, corsHeaders) {
   }
 
   const token = toHex(crypto.getRandomValues(new Uint8Array(32)));
-  await env.DB.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').bind(token, user.id).run();
+  await env.DB.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))").bind(token, user.id).run();
 
   return json({
     success: true,
@@ -656,10 +658,10 @@ async function handleMe(request, env, corsHeaders) {
   const token = (request.headers.get('Authorization') || '').replace('Bearer ', '').trim();
   if (!token) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
 
-  const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ?').bind(token).first();
+  const session = await env.DB.prepare("SELECT * FROM sessions WHERE token = ? AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))").bind(token).first();
   if (!session) return json({ error: 'Sitzung ungültig oder abgelaufen.' }, 401, corsHeaders);
 
-  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, voice_muted, troll_opt_in FROM users WHERE id = ?').bind(session.user_id).first();
+  const user = await env.DB.prepare('SELECT id, username, avatar, alias, bio, games, role, banned, troll_opt_in FROM users WHERE id = ?').bind(session.user_id).first();
   if (!user) return json({ error: 'Benutzer nicht gefunden.' }, 401, corsHeaders);
   if (user.banned) return json({ error: 'Konto gesperrt.' }, 403, corsHeaders);
 
@@ -669,6 +671,12 @@ async function handleMe(request, env, corsHeaders) {
   const warnings = (await env.DB.prepare('SELECT id, reason, created_at FROM warnings WHERE user_id = ? AND shown = 0 ORDER BY id DESC LIMIT 20').bind(user.id).all()).results;
   if (warnings.length) await env.DB.prepare('UPDATE warnings SET shown = 1 WHERE user_id = ? AND shown = 0').bind(user.id).run();
   return json({ success: true, user, postsCount, ticketsCount, warnings }, 200, corsHeaders);
+}
+
+async function handleLogout(request, env, corsHeaders) {
+  const token = (request.headers.get('Authorization') || '').replace('Bearer ', '').trim();
+  if (token) await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
+  return json({ success: true }, 200, corsHeaders);
 }
 
 async function handleProfileGet(request, env, corsHeaders) {
@@ -1209,14 +1217,14 @@ async function handleChestOpen(request, env, corsHeaders) {
 
   const item = rollCosmetic(pool);
 
-  await env.DB.prepare(
-    'INSERT INTO inventory (username, item_id, obtained_at, quantity) VALUES (?, ?, datetime(\'now\'), 1) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + 1, obtained_at = excluded.obtained_at'
-  ).bind(me.username, item.id).run();
+  let claim;
   if (usesGiftedChest) {
-    await env.DB.prepare('UPDATE chest_credits SET credits = credits - 1, updated_at = datetime(\'now\') WHERE username = ? AND credits > 0').bind(me.username).run();
+    claim = [await env.DB.prepare("UPDATE chest_credits SET credits = credits - 1, updated_at = datetime('now') WHERE username = ? AND credits > 0").bind(me.username).run()];
   } else {
-    await env.DB.prepare('INSERT INTO chest_opens (username, last_open_at) VALUES (?, datetime(\'now\')) ON CONFLICT(username) DO UPDATE SET last_open_at = excluded.last_open_at').bind(me.username).run();
+    claim = [await env.DB.prepare("INSERT INTO chest_opens (username, last_open_at) VALUES (?, datetime('now')) ON CONFLICT(username) DO UPDATE SET last_open_at = excluded.last_open_at WHERE datetime(last_open_at, '+86400 seconds') <= datetime('now')").bind(me.username).run()];
   }
+  if (!claim[0]?.meta?.changes) return json({ error: 'Diese Kiste wurde gerade bereits geöffnet.' }, 409, corsHeaders);
+  await env.DB.prepare("INSERT INTO inventory (username, item_id, obtained_at, quantity) VALUES (?, ?, datetime('now'), 1) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + 1, obtained_at = excluded.obtained_at").bind(me.username, item.id).run();
 
   const ownedRowsAfter = (await env.DB.prepare('SELECT item_id, quantity FROM inventory WHERE username = ?').bind(me.username).all()).results;
   const owned = ownedRowsAfter.map(r => r.item_id);
@@ -1356,12 +1364,17 @@ async function handleMarketList(request, env, corsHeaders) {
   const mode = String(body.mode || 'sale');
   const wanted = cosmeticById(String(body.wanted_item_id || ''));
   const quantity = Number(body.quantity);
-  if (!item || mode !== 'trade') return json({ error: 'Nur Item-Tausch-Angebote werden eingestellt.' }, 400, corsHeaders);
+  if (!item || !['sale', 'trade'].includes(mode)) return json({ error: 'Ungültige Angebotsart.' }, 400, corsHeaders);
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) return json({ error: 'Die Anzahl muss zwischen 1 und 100 liegen.' }, 400, corsHeaders);
+  const price = Number(body.price);
   if (mode === 'trade' && (!wanted || quantity !== 1 || wanted.id === item.id)) return json({ error: 'Ein Tausch benötigt zwei unterschiedliche Items und genau 1 Stück.' }, 400, corsHeaders);
-  if (await inventoryQuantity(env, user.username, item.id) < quantity) return json({ error: 'Du besitzt nicht genug von diesem Item.' }, 400, corsHeaders);
-  if (!(await removeInventory(env, user.username, item.id, quantity))) return json({ error: 'Item konnte nicht reserviert werden.' }, 409, corsHeaders);
-  await env.DB.prepare('INSERT INTO market_listings (seller, item_id, quantity, mode, wanted_item_id, price) VALUES (?, ?, ?, ?, ?, 0)').bind(user.username, item.id, quantity, mode, wanted?.id || null).run();
+  if (mode === 'sale' && (!Number.isInteger(price) || price < 1 || price > 1000000)) return json({ error: 'Ungültiger Preis.' }, 400, corsHeaders);
+  const result = await env.DB.batch([
+    env.DB.prepare('UPDATE inventory SET quantity = quantity - ? WHERE username = ? AND item_id = ? AND quantity >= ?').bind(quantity, user.username, item.id, quantity),
+    env.DB.prepare("INSERT INTO market_listings (seller, item_id, quantity, mode, wanted_item_id, price) VALUES (?, ?, ?, ?, ?, ?)").bind(user.username, item.id, quantity, mode, wanted?.id || null, mode === 'sale' ? price : 0),
+  ]);
+  if (!result[0]?.meta?.changes) return json({ error: 'Du besitzt nicht genug von diesem Item.' }, 400, corsHeaders);
+  await env.DB.prepare('DELETE FROM inventory WHERE username = ? AND item_id = ? AND quantity <= 0').bind(user.username, item.id).run();
   return json({ success: true }, 201, corsHeaders);
 }
 
@@ -1372,9 +1385,13 @@ async function handleMarketSell(request, env, corsHeaders) {
   const item = cosmeticById(String(body.item_id || ''));
   const quantity = Number(body.quantity);
   if (!item || !Number.isInteger(quantity) || quantity < 1 || quantity > 100) return json({ error: 'Ungültiger Verkauf.' }, 400, corsHeaders);
-  if (!(await removeInventory(env, user.username, item.id, quantity))) return json({ error: 'Du besitzt nicht genug von diesem Item.' }, 400, corsHeaders);
   const earned = quantity * (NIGHTCOIN_VALUE[item.rarity] || 0);
-  await env.DB.prepare('UPDATE users SET nightcoins = nightcoins + ? WHERE username = ?').bind(earned, user.username).run();
+  const result = await env.DB.batch([
+    env.DB.prepare('UPDATE inventory SET quantity = quantity - ? WHERE username = ? AND item_id = ? AND quantity >= ?').bind(quantity, user.username, item.id, quantity),
+    env.DB.prepare('UPDATE users SET nightcoins = nightcoins + ? WHERE username = ?').bind(earned, user.username),
+  ]);
+  if (!result[0]?.meta?.changes) return json({ error: 'Du besitzt nicht genug von diesem Item.' }, 400, corsHeaders);
+  await env.DB.prepare('DELETE FROM inventory WHERE username = ? AND item_id = ? AND quantity <= 0').bind(user.username, item.id).run();
   const coins = (await env.DB.prepare('SELECT nightcoins FROM users WHERE username = ?').bind(user.username).first()).nightcoins;
   return json({ success: true, earned, nightcoins: Number(coins) || 0 }, 200, corsHeaders);
 }
@@ -1389,10 +1406,13 @@ async function handleMarketBuy(request, env, corsHeaders) {
   if (listing.seller === user.username) return json({ error: 'Du kannst dein eigenes Angebot nicht kaufen.' }, 400, corsHeaders);
   const buyer = await env.DB.prepare('SELECT nightcoins FROM users WHERE username = ?').bind(user.username).first();
   if ((Number(buyer?.nightcoins) || 0) < listing.price) return json({ error: 'Nicht genug Nightcoins.' }, 400, corsHeaders);
-  await env.DB.prepare("UPDATE market_listings SET quantity = quantity - 1, status = CASE WHEN quantity <= 1 THEN 'sold' ELSE status END WHERE id = ? AND status = 'active'").bind(id).run();
-  await addInventory(env, user.username, listing.item_id, 1);
-  await env.DB.prepare('UPDATE users SET nightcoins = nightcoins - ? WHERE username = ?').bind(listing.price, user.username).run();
-  await env.DB.prepare('UPDATE users SET nightcoins = nightcoins + ? WHERE username = ?').bind(listing.price, listing.seller).run();
+  const result = await env.DB.batch([
+    env.DB.prepare("UPDATE market_listings SET quantity = quantity - 1, status = CASE WHEN quantity <= 1 THEN 'sold' ELSE status END WHERE id = ? AND status = 'active'").bind(id),
+    env.DB.prepare('UPDATE users SET nightcoins = nightcoins - ? WHERE username = ? AND nightcoins >= ?').bind(listing.price, user.username, listing.price),
+    env.DB.prepare('INSERT INTO inventory (username, item_id, quantity) VALUES (?, ?, 1) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + 1').bind(user.username, listing.item_id),
+    env.DB.prepare('UPDATE users SET nightcoins = nightcoins + ? WHERE username = ?').bind(listing.price, listing.seller),
+  ]);
+  if (!result[0]?.meta?.changes || !result[1]?.meta?.changes) return json({ error: 'Das Angebot ist nicht mehr verfügbar oder dein Guthaben reicht nicht.' }, 409, corsHeaders);
   return json({ success: true }, 200, corsHeaders);
 }
 
@@ -1404,10 +1424,14 @@ async function handleMarketTrade(request, env, corsHeaders) {
   const listing = await env.DB.prepare("SELECT * FROM market_listings WHERE id = ? AND status = 'active' AND mode = 'trade'").bind(id).first();
   if (!listing) return json({ error: 'Tauschangebot nicht gefunden.' }, 404, corsHeaders);
   if (listing.seller === user.username) return json({ error: 'Du kannst dein eigenes Angebot nicht tauschen.' }, 400, corsHeaders);
-  if (!(await removeInventory(env, user.username, listing.wanted_item_id, 1))) return json({ error: 'Du besitzt das gewünschte Item nicht.' }, 400, corsHeaders);
-  await addInventory(env, user.username, listing.item_id, 1);
-  await addInventory(env, listing.seller, listing.wanted_item_id, 1);
-  await env.DB.prepare("UPDATE market_listings SET status = 'traded' WHERE id = ? AND status = 'active'").bind(id).run();
+  const result = await env.DB.batch([
+    env.DB.prepare('UPDATE inventory SET quantity = quantity - 1 WHERE username = ? AND item_id = ? AND quantity >= 1').bind(user.username, listing.wanted_item_id),
+    env.DB.prepare('INSERT INTO inventory (username, item_id, quantity) VALUES (?, ?, 1) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + 1').bind(user.username, listing.item_id),
+    env.DB.prepare('INSERT INTO inventory (username, item_id, quantity) VALUES (?, ?, 1) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + 1').bind(listing.seller, listing.wanted_item_id),
+    env.DB.prepare("UPDATE market_listings SET status = 'traded' WHERE id = ? AND status = 'active'").bind(id),
+  ]);
+  if (!result[0]?.meta?.changes || !result[3]?.meta?.changes) return json({ error: 'Das Angebot ist nicht mehr verfügbar oder du besitzt das Item nicht.' }, 409, corsHeaders);
+  await env.DB.prepare('DELETE FROM inventory WHERE username = ? AND item_id = ? AND quantity <= 0').bind(user.username, listing.wanted_item_id).run();
   return json({ success: true }, 200, corsHeaders);
 }
 
@@ -1418,122 +1442,18 @@ async function handleMarketCancel(request, env, corsHeaders) {
   const id = Number(body.id);
   const listing = await env.DB.prepare("SELECT * FROM market_listings WHERE id = ? AND seller = ? AND status = 'active'").bind(id, user.username).first();
   if (!listing) return json({ error: 'Angebot nicht gefunden.' }, 404, corsHeaders);
-  await env.DB.prepare("UPDATE market_listings SET status = 'cancelled' WHERE id = ?").bind(id).run();
-  await addInventory(env, user.username, listing.item_id, listing.quantity);
+  const result = await env.DB.batch([
+    env.DB.prepare("UPDATE market_listings SET status = 'cancelled' WHERE id = ? AND seller = ? AND status = 'active'").bind(id, user.username),
+    env.DB.prepare('INSERT INTO inventory (username, item_id, quantity) VALUES (?, ?, ?) ON CONFLICT(username, item_id) DO UPDATE SET quantity = quantity + excluded.quantity').bind(user.username, listing.item_id, listing.quantity),
+  ]);
+  if (!result[0]?.meta?.changes) return json({ error: 'Angebot wurde bereits verändert.' }, 409, corsHeaders);
   return json({ success: true }, 200, corsHeaders);
-}
-
-async function voiceUser(request, env) { return getAuthUser(request, env); }
-async function voiceBody(request) { try { return await request.json(); } catch (e) { return {}; } }
-async function voiceMembers(env, channelId) {
-  return (await env.DB.prepare('SELECT vm.username, vm.joined_at, vm.muted, u.avatar, u.alias, u.role, u.glow_item, u.color_item FROM voice_members vm LEFT JOIN users u ON u.username = vm.username WHERE vm.channel_id = ? ORDER BY vm.joined_at').bind(channelId).all()).results;
-}
-async function cleanupEmptyVoiceChannels(env) {
-  await env.DB.prepare(
-    "DELETE FROM voice_channels WHERE datetime(COALESCE(last_empty_at, created_at), '+5 seconds') <= datetime('now') AND id NOT IN (SELECT channel_id FROM voice_members)"
-  ).run();
-  await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id NOT IN (SELECT id FROM voice_channels)').run();
-}
-async function handleVoiceGet(request, env, corsHeaders) {
-  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  await cleanupEmptyVoiceChannels(env);
-  const channels = (await env.DB.prepare('SELECT c.id, c.name, c.owner, c.max_users, c.is_open, c.friends_only, c.created_at, COUNT(m.username) AS member_count FROM voice_channels c LEFT JOIN voice_members m ON m.channel_id = c.id GROUP BY c.id ORDER BY c.id DESC').all()).results;
-  for (const c of channels) c.members = await voiceMembers(env, c.id);
-  return json({ channels, voice_muted: !!user.voice_muted }, 200, corsHeaders);
-}
-async function handleVoiceCreate(request, env, corsHeaders) {
-  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  const b = await voiceBody(request), name = String(b.name || '').trim(), max = Number(b.max_users), access = String(b.access || (b.is_open === false ? 'closed' : 'open'));
-  if (name.length < 2 || name.length > 32) return json({ error: 'Der Kanalname muss 2–32 Zeichen haben.' }, 400, corsHeaders);
-  if (!Number.isInteger(max) || max < 2 || max > 50) return json({ error: 'Die Kapazität muss zwischen 2 und 50 liegen.' }, 400, corsHeaders);
-  if (!['open', 'friends', 'closed'].includes(access)) return json({ error: 'Ungültiger Zugang.' }, 400, corsHeaders);
-  const result = await env.DB.prepare('INSERT INTO voice_channels (name, owner, max_users, is_open, friends_only) VALUES (?, ?, ?, ?, ?)').bind(name, user.username, max, access === 'closed' ? 0 : 1, access === 'friends' ? 1 : 0).run();
-  await env.DB.prepare('INSERT INTO voice_members (channel_id, username) VALUES (?, ?)').bind(result.meta.last_row_id, user.username).run();
-  return json({ success: true, channel_id: result.meta.last_row_id }, 201, corsHeaders);
-}
-async function handleVoiceJoin(request, env, corsHeaders) {
-  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  if (user.voice_muted) return json({ error: 'Dein Voicezugang wurde vom Team stummgeschaltet.' }, 403, corsHeaders);
-  await cleanupEmptyVoiceChannels(env);
-  const id = Number((await voiceBody(request)).channel_id), c = await env.DB.prepare('SELECT * FROM voice_channels WHERE id = ?').bind(id).first();
-  if (!c) return json({ error: 'Kanal nicht gefunden.' }, 404, corsHeaders);
-  const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
-  if (member) return json({ success: true }, 200, corsHeaders);
-  if (!c.is_open && c.owner !== user.username) return json({ error: 'Dieser Kanal ist geschlossen.' }, 403, corsHeaders);
-  if (c.friends_only && c.owner !== user.username && !(await isFriend(env, c.owner, user.username))) return json({ error: 'Dieser Kanal ist nur für Freunde des Erstellers.' }, 403, corsHeaders);
-  const count = (await env.DB.prepare('SELECT COUNT(*) AS n FROM voice_members WHERE channel_id = ?').bind(id).first()).n;
-  if (count >= c.max_users) return json({ error: 'Der Kanal ist voll.' }, 409, corsHeaders);
-  await env.DB.prepare('INSERT INTO voice_members (channel_id, username) VALUES (?, ?)').bind(id, user.username).run();
-  await env.DB.prepare('UPDATE voice_channels SET last_empty_at = NULL WHERE id = ?').bind(id).run();
-  return json({ success: true }, 200, corsHeaders);
-}
-async function handleVoiceLeave(request, env, corsHeaders) {
-  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  const id = Number((await voiceBody(request)).channel_id);
-  await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).run();
-  await env.DB.prepare("UPDATE voice_channels SET last_empty_at = datetime('now') WHERE id = ? AND NOT EXISTS (SELECT 1 FROM voice_members WHERE channel_id = ?)").bind(id, id).run();
-  await cleanupEmptyVoiceChannels(env);
-  return json({ success: true }, 200, corsHeaders);
-}
-async function handleVoiceSignal(request, env, corsHeaders) {
-  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  if (user.voice_muted) return json({ error: 'Dein Voicezugang wurde vom Team stummgeschaltet.' }, 403, corsHeaders);
-  const b = await voiceBody(request), id = Number(b.channel_id), to = String(b.to || ''), kind = String(b.kind || ''), payload = String(b.payload || '');
-  if (!id || !to || !['offer', 'answer', 'candidate'].includes(kind) || payload.length > 20000) return json({ error: 'Ungültiges Signal.' }, 400, corsHeaders);
-  const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
-  const recipient = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, to).first();
-  if (!member || !recipient) return json({ error: 'Nicht im Kanal.' }, 403, corsHeaders);
-  await env.DB.prepare('INSERT INTO voice_signals (channel_id, sender, recipient, kind, payload) VALUES (?, ?, ?, ?, ?)').bind(id, user.username, to, kind, payload).run();
-  return json({ success: true }, 200, corsHeaders);
-}
-async function handleVoiceSignals(request, env, corsHeaders) {
-  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  const u = new URL(request.url), id = Number(u.searchParams.get('channel_id')), after = Number(u.searchParams.get('after')) || 0;
-  const member = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(id, user.username).first();
-  if (!member) return json({ error: 'Nicht im Kanal.' }, 403, corsHeaders);
-  const signals = (await env.DB.prepare('SELECT id, sender, kind, payload FROM voice_signals WHERE channel_id = ? AND recipient = ? AND id > ? ORDER BY id ASC LIMIT 100').bind(id, user.username, after).all()).results;
-  if (signals.length) await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id = ? AND recipient = ? AND id <= ?').bind(id, user.username, signals[signals.length - 1].id).run();
-  return json({ signals }, 200, corsHeaders);
-}
-async function handleVoiceClose(request, env, corsHeaders) {
-  const user = await voiceUser(request, env); if (!user) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
-  const id = Number((await voiceBody(request)).channel_id), c = await env.DB.prepare('SELECT owner FROM voice_channels WHERE id = ?').bind(id).first();
-  if (!c || c.owner !== user.username) return json({ error: 'Nur der Ersteller darf den Kanal schließen.' }, 403, corsHeaders);
-  await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id = ?').bind(id).run(); await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ?').bind(id).run(); await env.DB.prepare('DELETE FROM voice_channels WHERE id = ?').bind(id).run();
-  return json({ success: true }, 200, corsHeaders);
-}
-
-async function voiceStaff(request, env) { return isStaff(request, env); }
-async function handleAdminVoiceMute(request, env, corsHeaders) {
-  const staff = await voiceStaff(request, env); if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
-  const b = await voiceBody(request), channelId = Number(b.channel_id), username = String(b.username || '').trim(), muted = b.muted !== false;
-  if (!channelId || !username) return json({ error: 'Ungültige Anfrage.' }, 400, corsHeaders);
-  const target = await env.DB.prepare('SELECT username FROM voice_members WHERE channel_id = ? AND username = ?').bind(channelId, username).first();
-  if (!target) return json({ error: 'Teilnehmer nicht gefunden.' }, 404, corsHeaders);
-  await env.DB.prepare('UPDATE voice_members SET muted = ? WHERE channel_id = ? AND username = ?').bind(muted ? 1 : 0, channelId, username).run();
-  return json({ success: true, muted }, 200, corsHeaders);
-}
-
-async function handleAdminUserVoiceMute(request, env, corsHeaders) {
-  const admin = await isAdmin(request, env);
-  if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
-  const body = await voiceBody(request);
-  const id = Number(body.id);
-  const muted = body.muted !== false;
-  const target = await env.DB.prepare('SELECT id, username, role FROM users WHERE id = ?').bind(id).first();
-  if (!target) return json({ error: 'Benutzer nicht gefunden.' }, 404, corsHeaders);
-  if (target.id === admin.id) return json({ error: 'Du kannst dich nicht selbst stummschalten.' }, 400, corsHeaders);
-  if (target.role === 'founder' && admin.role !== 'founder') return json({ error: 'Founder können nur vom Founder verwaltet werden.' }, 403, corsHeaders);
-  await env.DB.prepare('UPDATE users SET voice_muted = ? WHERE id = ?').bind(muted ? 1 : 0, id).run();
-  if (muted) await env.DB.prepare('DELETE FROM voice_members WHERE username = ?').bind(target.username).run();
-  if (muted) await env.DB.prepare("UPDATE voice_channels SET last_empty_at = datetime('now') WHERE NOT EXISTS (SELECT 1 FROM voice_members WHERE channel_id = voice_channels.id)").run();
-  return json({ success: true, muted }, 200, corsHeaders);
 }
 
 async function handleAdminUserWarn(request, env, corsHeaders) {
   const admin = await isAdmin(request, env);
   if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
-  const body = await voiceBody(request);
+  const body = await readMarketBody(request);
   const id = Number(body.id);
   const reason = String(body.reason || '').trim().slice(0, 500);
   if (!id || !reason) return json({ error: 'Benutzer und Verwarnungstext sind erforderlich.' }, 400, corsHeaders);
@@ -1548,7 +1468,7 @@ async function handleAdminUserWarn(request, env, corsHeaders) {
 async function handleAdminTrollSend(request, env, corsHeaders) {
   const admin = await isAdmin(request, env);
   if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
-  const body = await voiceBody(request);
+  const body = await readMarketBody(request);
   const username = String(body.username || '').trim();
   const sound = String(body.sound || '').trim();
   if (!username || !TROLL_SOUNDS.includes(sound)) return json({ error: 'Ungültiger Nutzer oder Sound.' }, 400, corsHeaders);
@@ -1560,26 +1480,6 @@ async function handleAdminTrollSend(request, env, corsHeaders) {
   await env.DB.prepare('INSERT INTO troll_events (target_user_id, sound) VALUES (?, ?)').bind(target.id, sound).run();
   return json({ success: true }, 201, corsHeaders);
 }
-async function handleAdminVoiceClose(request, env, corsHeaders) {
-  const staff = await voiceStaff(request, env); if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
-  const id = Number((await voiceBody(request)).channel_id);
-  await env.DB.prepare('UPDATE voice_channels SET is_open = 0 WHERE id = ?').bind(id).run();
-  return json({ success: true }, 200, corsHeaders);
-}
-async function handleAdminVoiceDelete(request, env, corsHeaders) {
-  const staff = await voiceStaff(request, env); if (!staff) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
-  const id = Number((await voiceBody(request)).channel_id);
-  await env.DB.prepare('DELETE FROM voice_signals WHERE channel_id = ?').bind(id).run();
-  await env.DB.prepare('DELETE FROM voice_members WHERE channel_id = ?').bind(id).run();
-  await env.DB.prepare('DELETE FROM voice_channels WHERE id = ?').bind(id).run();
-  return json({ success: true }, 200, corsHeaders);
-}
-async function handleAdminVoiceReset(request, env, corsHeaders) {
-  const admin = await isAdmin(request, env); if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
-  await env.DB.prepare('DELETE FROM voice_signals').run(); await env.DB.prepare('DELETE FROM voice_members').run(); await env.DB.prepare('DELETE FROM voice_channels').run();
-  return json({ success: true }, 200, corsHeaders);
-}
-
 async function handleInventoryEquip(request, env, corsHeaders) {
   const me = await getAuthUser(request, env);
   if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
@@ -1618,6 +1518,7 @@ async function handleInventoryUnequip(request, env, corsHeaders) {
 
 async function handleFeed(request, env, corsHeaders, settings) {
   const me = await getAuthUser(request, env);
+  if (!me) return json({ error: 'Nicht angemeldet.' }, 401, corsHeaders);
   await cleanupExpiredAnnouncements(env);
 
   const announcements = (await env.DB.prepare(
@@ -1667,7 +1568,7 @@ async function handleCreatePost(request, env, corsHeaders, settings) {
   const kind = String(body.kind || '');
   const title = String(body.title || '').trim();
   const text = String(body.body || '').trim();
-  const fileKey = typeof body.fileKey === 'string' ? body.fileKey : null;
+  const fileKey = typeof body.fileKey === 'string' && validCloudinaryUrl(body.fileKey) ? body.fileKey : null;
   const duration = Number(body.duration) || 0;
 
   if (kind !== 'announcement' && kind !== 'highlight' && kind !== 'submission') {
@@ -1718,6 +1619,14 @@ async function handlePresign(request, env, corsHeaders) {
   const cloud = env.CLOUDINARY_CLOUD;
   const apiKey = env.CLOUDINARY_API_KEY;
   const apiSecret = env.CLOUDINARY_API_SECRET;
+  const body = await readMarketBody(request);
+  const maxMb = Math.min(Math.max(Number((await getSettings(env)).max_image_mb) || 10, 1), 25);
+  const size = Number(body.size);
+  const type = String(body.type || '');
+  if (!Number.isInteger(size) || size < 1 || size > maxMb * 1024 * 1024 || !/^image\/(jpeg|png|webp|gif)$/i.test(type)) {
+    return json({ error: 'Ungültige oder zu große Bilddatei.' }, 400, corsHeaders);
+  }
+  if (!cloud || !apiKey || !apiSecret) return json({ error: 'Bild-Upload ist nicht konfiguriert.' }, 503, corsHeaders);
 
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const folder = 'nightdata';
@@ -1731,24 +1640,11 @@ async function handlePresign(request, env, corsHeaders) {
   }, 200, corsHeaders);
 }
 
-async function handleConsoleAlert(request, env, corsHeaders) {
-  const me = await getAuthUser(request, env);
-  let body = {};
+function validCloudinaryUrl(value) {
   try {
-    body = await request.json();
-  } catch (err) {}
-
-  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-real-ip') || 'unbekannt';
-  const ua = request.headers.get('User-Agent') || '';
-  const action = String(body.action || 'console-zugriff');
-  const ipv4 = String(body.ipv4 || body.clientIpv4 || '').slice(0, 45);
-  const ipv6 = String(body.ipv6 || body.clientIpv6 || '').slice(0, 45);
-
-  await env.DB.prepare(
-    'INSERT INTO security_logs (username, ip, ua, action, ipv4, ipv6) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(me ? me.username : 'nicht angemeldet', ip, ua.slice(0, 300), action, ipv4 || null, ipv6 || null).run();
-
-  return json({ success: true }, 200, corsHeaders);
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname.endsWith('.cloudinary.com') && url.pathname.includes('/image/upload/');
+  } catch (err) { return false; }
 }
 
 async function handleCreateTicket(request, env, corsHeaders) {
@@ -1831,7 +1727,7 @@ async function handleAdminUsers(request, env, corsHeaders) {
   if (!admin) return json({ error: 'Keine Berechtigung.' }, 403, corsHeaders);
 
   const users = (await env.DB.prepare(
-    'SELECT id, username, role, banned, voice_muted, created_at FROM users ORDER BY id'
+    'SELECT id, username, role, banned, created_at FROM users ORDER BY id'
   ).all()).results;
 
   return json({ users }, 200, corsHeaders);
@@ -1917,6 +1813,8 @@ async function handleAdminUserDelete(request, env, corsHeaders) {
   await env.DB.prepare('DELETE FROM friend_requests WHERE from_user = ? OR to_user = ?').bind(user.username, user.username).run();
   await env.DB.prepare('DELETE FROM friends WHERE user_a = ? OR user_b = ?').bind(user.username, user.username).run();
   await env.DB.prepare('DELETE FROM dm_messages WHERE sender = ? OR recipient = ?').bind(user.username, user.username).run();
+  await env.DB.prepare('DELETE FROM warnings WHERE user_id = ?').bind(user.id).run();
+  await env.DB.prepare('DELETE FROM troll_events WHERE target_user_id = ?').bind(user.id).run();
   await env.DB.prepare('DELETE FROM inventory WHERE username = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM chest_opens WHERE username = ?').bind(user.username).run();
   await env.DB.prepare('DELETE FROM chest_credits WHERE username = ?').bind(user.username).run();

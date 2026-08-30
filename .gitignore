@@ -11,6 +11,9 @@ users.db
 .env
 .env.local
 .dev.vars
+*.key
+*.key.pub
+ssh-key*
 
 # Cloudflare Wrangler
 .wrangler/
