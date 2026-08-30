@@ -288,6 +288,12 @@
      .top-game-name { color: #f0e7ff; font: 700 13px 'Orbitron',sans-serif; overflow-wrap: anywhere; }
       .top-game-meta { margin-top: 8px; color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
       .top-game { display: block; min-height: 150px; padding: 0 12px 12px 42px; overflow: hidden; box-shadow: 0 0 18px rgba(255,209,102,.12), inset 0 0 18px rgba(255,209,102,.04); text-decoration: none; }
+      .top-game.rank-1 { grid-column: 2; border-color: rgba(255,209,102,.75); box-shadow: 0 0 28px rgba(255,77,109,.28), 0 0 44px rgba(122,224,224,.18), inset 0 0 22px rgba(255,209,102,.08); }
+      .top-game.rank-2 { grid-column: 1; border-color: rgba(216,226,240,.65); box-shadow: 0 0 24px rgba(216,226,240,.22), inset 0 0 18px rgba(216,226,240,.06); }
+      .top-game.rank-3 { grid-column: 3; border-color: rgba(255,209,102,.58); box-shadow: 0 0 24px rgba(255,209,102,.25), inset 0 0 18px rgba(255,209,102,.06); }
+      .top-game.rank-1 .top-game-rank { background: linear-gradient(90deg, #ff4d6d, #ffd166, #7ae0e0, #8b3ff0, #ff4d6d); background-size: 220% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: glowshift 3s linear infinite; }
+      .top-game.rank-2 .top-game-rank { color: #e8ecff; text-shadow: 0 0 12px rgba(232,236,255,.9); }
+      .top-game.rank-3 .top-game-rank { color: #ffd166; text-shadow: 0 0 12px rgba(255,209,102,.8); }
       .top-game-cover { display: block; width: calc(100% + 54px); height: 82px; margin: 0 -12px 10px -42px; object-fit: cover; border-bottom: 1px solid rgba(255,209,102,.35); }
       .top-game-cover-fallback { display: flex; align-items: center; justify-content: center; width: calc(100% + 54px); height: 82px; margin: 0 -12px 10px -42px; color: #ffd166; font: 900 24px 'Orbitron',sans-serif; background: linear-gradient(135deg, #27164a, #101529); }
       .game-picker { display: grid; gap: 10px; margin-bottom: 14px; }
@@ -304,7 +310,7 @@
       .nightman-score-rank { width: 24px; color: #ffd166; font: 700 15px 'Orbitron',sans-serif; }
       .nightman-score-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .nightman-score-value { color: #7ae0e0; }
-      @media (max-width: 640px) { .top-games-grid { grid-template-columns: 1fr; } .nightman-canvas { height: 130px; } .game-picker-row { align-items: stretch; flex-wrap: wrap; } .game-picker-row span { width: 100%; } }
+      @media (max-width: 640px) { .top-games-grid { grid-template-columns: 1fr; } .top-game.rank-1, .top-game.rank-2, .top-game.rank-3 { grid-column: auto; } .nightman-canvas { height: 130px; } .game-picker-row { align-items: stretch; flex-wrap: wrap; } .game-picker-row span { width: 100%; } }
 
     .ticket-form { display: grid; gap: 12px; margin-bottom: 20px; }
     @media (min-width: 640px) { .ticket-form { grid-template-columns: 1fr 1fr; } .ticket-form .tf-info, .ticket-form .tf-btn { grid-column: 1 / -1; } }
@@ -2809,8 +2815,9 @@
         const meta = [g.discord, g.score].filter(Boolean).join(' · ');
         const steam = steamData(g.game, g.steamUrl);
         const image = g.imageUrl || steam.imageUrl;
-        const content = (image ? '<img class="top-game-cover" src="' + escapeHtml(image) + '" alt="' + escapeHtml(g.game) + ' Cover" loading="lazy" onerror="this.outerHTML=\'<div class=\"top-game-cover-fallback\">GAME</div>\'">' : '<div class="top-game-cover-fallback">GAME</div>') + '<span class="top-game-rank">' + (i + 1) + '</span><div class="top-game-name">' + escapeHtml(g.game) + '</div><div class="top-game-meta">' + escapeHtml(meta || 'TOP RANKING') + '</div>';
-        return steam.steamUrl ? '<a class="top-game" href="' + escapeHtml(steam.steamUrl) + '" target="_blank" rel="noopener noreferrer">' + content + '</a>' : '<div class="top-game">' + content + '</div>';
+        const content = (image ? '<img class="top-game-cover" src="' + escapeHtml(image) + '" alt="' + escapeHtml(g.game) + ' Cover" loading="lazy" onerror="this.outerHTML=\'<div class=\"top-game-cover-fallback\">HIER ZUM SPIEL</div>\'">' : '<div class="top-game-cover-fallback">HIER ZUM SPIEL</div>') + '<span class="top-game-rank">' + (i + 1) + '</span><div class="top-game-name">' + escapeHtml(g.game) + '</div><div class="top-game-meta">' + escapeHtml(meta || 'TOP RANKING') + '</div>';
+        const rankClass = 'rank-' + (i + 1);
+        return steam.steamUrl ? '<a class="top-game ' + rankClass + '" href="' + escapeHtml(steam.steamUrl) + '" target="_blank" rel="noopener noreferrer">' + content + '</a>' : '<div class="top-game ' + rankClass + '">' + content + '</div>';
       }).join('') : '<div class="empty">Noch keine Top-Games eingetragen.</div>';
     }
 
