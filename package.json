@@ -1,7 +1,7 @@
 {
-  "name": "account-system",
+  "name": "nightweb",
   "version": "1.0.0",
-  "description": "Login- und Registrierungssystem mit Node.js, Express und SQLite",
+  "description": "NIGHTWEB Webanwendung mit Cloudflare Worker und D1",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -1645,7 +1645,7 @@ async function handlePresign(request, env, corsHeaders) {
   if (!cloud || !apiKey || !apiSecret) return json({ error: 'Bild-Upload ist nicht konfiguriert.' }, 503, corsHeaders);
 
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const folder = 'nightdata';
+  const folder = 'nightweb';
   const toSign = `folder=${folder}&timestamp=${timestamp}`;
   const signature = await sha1Hex(toSign + apiSecret);
 
