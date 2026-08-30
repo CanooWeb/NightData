@@ -1452,7 +1452,7 @@
       const data = await api('/api/presence', {}, token);
       if (data && Number.isFinite(Number(data.count))) document.getElementById('liveUserCount').textContent = Number(data.count);
     }
-    setInterval(sendPresenceHeartbeat, 30000);
+    setInterval(sendPresenceHeartbeat, 5000);
 
     const reportedSecurityEvents = new Set();
     function reportSecurityEvent(event) {
