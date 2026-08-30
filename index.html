@@ -282,20 +282,20 @@
     .panel-head h2 { font-family: 'Orbitron',sans-serif; font-weight: 700; letter-spacing: 3px; font-size: 15px; color: #c47dff; text-shadow: 0 0 12px rgba(0,0,0,0.9), 0 0 4px rgba(139,63,240,0.5); }
     .panel-head .live { font-family: 'Share Tech Mono',monospace; font-size: 11px; color: #7ae0e0; letter-spacing: 2px; text-shadow: 0 0 8px rgba(122,224,224,0.6); }
      .panel-body { padding: 18px 20px; }
-     .top-games-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-     .top-game { position: relative; padding: 14px 12px 12px 42px; min-height: 82px; border: 1px solid rgba(255,209,102,.35); border-radius: 10px; background: linear-gradient(135deg, rgba(255,209,102,.1), rgba(16,18,30,.8)); }
+      .top-games-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; }
+      .top-game { position: relative; display: block; min-height: 118px; padding: 0 10px 10px 32px; overflow: hidden; border: 1px solid rgba(255,209,102,.35); border-radius: 9px; background: linear-gradient(145deg, rgba(255,209,102,.08), rgba(16,18,30,.88)); text-decoration: none; }
      .top-game-rank { position: absolute; left: 12px; top: 14px; color: #ffd166; font: 900 22px 'Orbitron',sans-serif; }
      .top-game-name { color: #f0e7ff; font: 700 13px 'Orbitron',sans-serif; overflow-wrap: anywhere; }
       .top-game-meta { margin-top: 8px; color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
       .top-game { display: block; min-height: 150px; padding: 0 12px 12px 42px; overflow: hidden; box-shadow: 0 0 18px rgba(255,209,102,.12), inset 0 0 18px rgba(255,209,102,.04); text-decoration: none; }
-      .top-game.rank-1 { grid-column: 2; border-color: rgba(255,209,102,.75); box-shadow: 0 0 28px rgba(255,77,109,.28), 0 0 44px rgba(122,224,224,.18), inset 0 0 22px rgba(255,209,102,.08); }
-      .top-game.rank-2 { grid-column: 1; border-color: rgba(216,226,240,.65); box-shadow: 0 0 24px rgba(216,226,240,.22), inset 0 0 18px rgba(216,226,240,.06); }
-      .top-game.rank-3 { grid-column: 3; border-color: rgba(255,209,102,.58); box-shadow: 0 0 24px rgba(255,209,102,.25), inset 0 0 18px rgba(255,209,102,.06); }
+      .top-game.rank-1 { grid-column: 2; border-color: rgba(255,209,102,.72); box-shadow: 0 0 20px rgba(255,77,109,.18), 0 0 28px rgba(122,224,224,.12); }
+      .top-game.rank-2 { grid-column: 1; border-color: rgba(216,226,240,.58); box-shadow: 0 0 16px rgba(216,226,240,.14); }
+      .top-game.rank-3 { grid-column: 3; border-color: rgba(255,209,102,.52); box-shadow: 0 0 16px rgba(255,209,102,.16); }
       .top-game.rank-1 .top-game-rank { background: linear-gradient(90deg, #ff4d6d, #ffd166, #7ae0e0, #8b3ff0, #ff4d6d); background-size: 220% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: glowshift 3s linear infinite; }
       .top-game.rank-2 .top-game-rank { color: #e8ecff; text-shadow: 0 0 12px rgba(232,236,255,.9); }
       .top-game.rank-3 .top-game-rank { color: #ffd166; text-shadow: 0 0 12px rgba(255,209,102,.8); }
-      .top-game-cover { display: block; width: calc(100% + 54px); height: 82px; margin: 0 -12px 10px -42px; object-fit: cover; border-bottom: 1px solid rgba(255,209,102,.35); }
-      .top-game-cover-fallback { display: flex; align-items: center; justify-content: center; width: calc(100% + 54px); height: 82px; margin: 0 -12px 10px -42px; color: #ffd166; font: 900 24px 'Orbitron',sans-serif; background: linear-gradient(135deg, #27164a, #101529); }
+      .top-game-cover { display: block; width: calc(100% + 42px); height: 58px; margin: 0 -10px 8px -32px; object-fit: cover; border-bottom: 1px solid rgba(255,209,102,.28); }
+      .top-game-cover-fallback { display: flex; align-items: center; justify-content: center; width: calc(100% + 42px); height: 58px; margin: 0 -10px 8px -32px; color: #ffd166; font: 700 12px 'Orbitron',sans-serif; letter-spacing: 1px; background: linear-gradient(135deg, #27164a, #101529); }
       .game-picker { display: grid; gap: 10px; margin-bottom: 14px; }
       .game-picker-row { display: flex; align-items: center; gap: 10px; }
       .game-picker-row span { width: 26px; color: #ffd166; font: 700 15px 'Orbitron',sans-serif; }
