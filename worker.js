@@ -1636,6 +1636,8 @@ function parseTopGames(value) {
       game: String(g.game || '').trim().slice(0, 40),
       discord: String(g.discord || '').trim().slice(0, 40),
       score: String(g.score || '').trim().slice(0, 20),
+      steamUrl: /^https:\/\/store\.steampowered\.com\/app\/\d+/.test(String(g.steamUrl || '')) ? String(g.steamUrl).slice(0, 300) : '',
+      imageUrl: /^https:\/\/(?:cdn\.akamai\.steamstatic\.com|cdn\.cloudflare\.steamstatic\.com)\/steam\/apps\/\d+\/header\.jpg$/.test(String(g.imageUrl || '')) ? String(g.imageUrl).slice(0, 300) : '',
     })).filter(g => g.game) : [];
   } catch (err) { return []; }
 }

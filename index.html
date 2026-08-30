@@ -287,7 +287,9 @@
      .top-game-rank { position: absolute; left: 12px; top: 14px; color: #ffd166; font: 900 22px 'Orbitron',sans-serif; }
      .top-game-name { color: #f0e7ff; font: 700 13px 'Orbitron',sans-serif; overflow-wrap: anywhere; }
       .top-game-meta { margin-top: 8px; color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
-      .top-game { box-shadow: 0 0 18px rgba(255,209,102,.12), inset 0 0 18px rgba(255,209,102,.04); }
+      .top-game { display: block; min-height: 150px; padding: 0 12px 12px 42px; overflow: hidden; box-shadow: 0 0 18px rgba(255,209,102,.12), inset 0 0 18px rgba(255,209,102,.04); text-decoration: none; }
+      .top-game-cover { display: block; width: calc(100% + 54px); height: 82px; margin: 0 -12px 10px -42px; object-fit: cover; border-bottom: 1px solid rgba(255,209,102,.35); }
+      .top-game-cover-fallback { display: flex; align-items: center; justify-content: center; width: calc(100% + 54px); height: 82px; margin: 0 -12px 10px -42px; color: #ffd166; font: 900 24px 'Orbitron',sans-serif; background: linear-gradient(135deg, #27164a, #101529); }
       .game-picker { display: grid; gap: 10px; margin-bottom: 14px; }
       .game-picker-row { display: flex; align-items: center; gap: 10px; }
       .game-picker-row span { width: 26px; color: #ffd166; font: 700 15px 'Orbitron',sans-serif; }
@@ -302,7 +304,7 @@
       .nightman-score-rank { width: 24px; color: #ffd166; font: 700 15px 'Orbitron',sans-serif; }
       .nightman-score-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .nightman-score-value { color: #7ae0e0; }
-     @media (max-width: 640px) { .top-games-grid { grid-template-columns: 1fr; } .nightman-canvas { height: 130px; } }
+      @media (max-width: 640px) { .top-games-grid { grid-template-columns: 1fr; } .nightman-canvas { height: 130px; } .game-picker-row { align-items: stretch; flex-wrap: wrap; } .game-picker-row span { width: 100%; } }
 
     .ticket-form { display: grid; gap: 12px; margin-bottom: 20px; }
     @media (min-width: 640px) { .ticket-form { grid-template-columns: 1fr 1fr; } .ticket-form .tf-info, .ticket-form .tf-btn { grid-column: 1 / -1; } }
@@ -1113,9 +1115,9 @@
            <div class="row">
              <label>Top 3 Games auswählen</label>
              <div class="game-picker" id="gamePicker">
-               <div class="game-picker-row"><span>1</span><input id="set-game-1" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"></div>
-               <div class="game-picker-row"><span>2</span><input id="set-game-2" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"></div>
-               <div class="game-picker-row"><span>3</span><input id="set-game-3" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"></div>
+               <div class="game-picker-row"><span>1</span><input id="set-game-1" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"><input id="set-game-url-1" type="url" maxlength="300" placeholder="Steam-Link (optional)"></div>
+               <div class="game-picker-row"><span>2</span><input id="set-game-2" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"><input id="set-game-url-2" type="url" maxlength="300" placeholder="Steam-Link (optional)"></div>
+               <div class="game-picker-row"><span>3</span><input id="set-game-3" list="gameCatalog" maxlength="40" placeholder="Spiel auswählen oder eingeben"><input id="set-game-url-3" type="url" maxlength="300" placeholder="Steam-Link (optional)"></div>
              </div>
              <datalist id="gameCatalog"></datalist>
            </div>
@@ -1469,6 +1471,12 @@
     const GAME_CATALOG = [
       'Counter-Strike 2', 'Dota 2', 'PUBG: Battlegrounds', 'Apex Legends', 'Dead by Daylight', 'Rust', 'Garry’s Mod', 'Terraria', 'Stardew Valley', 'Palworld', 'Baldur’s Gate 3', 'Elden Ring', 'Cyberpunk 2077', 'The Witcher 3', 'Grand Theft Auto V', 'Red Dead Redemption 2', 'Lethal Company', 'Phasmophobia', 'Sons of the Forest', 'The Forest', 'Raft', 'Project Zomboid', '7 Days to Die', 'Valheim', 'ARK: Survival Evolved', 'Factorio', 'Satisfactory', 'Cities: Skylines II', 'Euro Truck Simulator 2', 'Assetto Corsa', 'BeamNG.drive', 'Forza Horizon 5', 'Hogwarts Legacy', 'Hades II', 'Hollow Knight', 'Among Us', 'Left 4 Dead 2', 'Portal 2', 'Half-Life 2', 'Team Fortress 2', 'Warframe', 'Destiny 2', 'Overwatch 2', 'Minecraft', 'Fortnite', 'Valorant', 'League of Legends', 'Call of Duty: Warzone', 'Rocket League', 'Rainbow Six Siege', 'Roblox', 'FIFA', 'EA Sports FC 25', 'Final Fantasy XIV', 'World of Warcraft', 'The Elder Scrolls Online', 'Diablo IV', 'Genshin Impact', 'The Sims 4', 'Dead Space', 'Resident Evil 4', 'DOOM Eternal', 'God of War', 'Spider-Man Remastered', 'Sea of Thieves', 'Mortal Kombat 1', 'Tekken 8', 'Street Fighter 6', 'Fall Guys', 'The Finals', 'Hunt: Showdown 1896', 'Helldivers 2', 'Enshrouded', 'No Man’s Sky', 'Dont Starve Together', 'Killing Floor 2'
     ];
+    const GAME_APP_IDS = { 'Counter-Strike 2': 730, 'Dota 2': 570, 'PUBG: Battlegrounds': 578080, 'Apex Legends': 1172470, 'Dead by Daylight': 381210, 'Rust': 252490, 'Garry’s Mod': 4000, 'Terraria': 105600, 'Stardew Valley': 413150, 'Palworld': 1623730, 'Baldur’s Gate 3': 1086940, 'Elden Ring': 1245620, 'Cyberpunk 2077': 1091500, 'The Witcher 3': 292030, 'Grand Theft Auto V': 271590, 'Red Dead Redemption 2': 1174180, 'Lethal Company': 1966720, 'Phasmophobia': 739630, 'Sons of the Forest': 1326470, 'The Forest': 242760, 'Raft': 648800, 'Project Zomboid': 108600, 'Valheim': 892970, 'Factorio': 427520, 'Satisfactory': 526870, 'Forza Horizon 5': 1551360, 'Hades II': 1145350, 'Hollow Knight': 367520, 'Among Us': 945360, 'Portal 2': 620, 'Team Fortress 2': 440, 'Warframe': 230410, 'Destiny 2': 1085660, 'Minecraft': 1672970, 'Rocket League': 252950, 'Rainbow Six Siege': 359550, 'Helldivers 2': 553850, 'No Man’s Sky': 275850 };
+    function steamData(game, customUrl) {
+      const url = String(customUrl || '').trim();
+      const id = GAME_APP_IDS[game] || (url.match(/\/app\/(\d+)/) || [])[1];
+      return id ? { steamUrl: 'https://store.steampowered.com/app/' + id, imageUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/' + id + '/header.jpg' } : { steamUrl: '', imageUrl: '' };
+    }
 
     const COSMETICS = [
       { id: 'neon_blue',    cat: 'glow',  label: 'Neon Blau',        v: '#4da6ff', rarity: 'common' },
@@ -2799,7 +2807,10 @@
       if (!box) return;
       box.innerHTML = games.length ? games.map(function (g, i) {
         const meta = [g.discord, g.score].filter(Boolean).join(' · ');
-        return '<div class="top-game"><span class="top-game-rank">' + (i + 1) + '</span><div class="top-game-name">' + escapeHtml(g.game) + '</div><div class="top-game-meta">' + escapeHtml(meta || 'TOP RANKING') + '</div></div>';
+        const steam = steamData(g.game, g.steamUrl);
+        const image = g.imageUrl || steam.imageUrl;
+        const content = (image ? '<img class="top-game-cover" src="' + escapeHtml(image) + '" alt="' + escapeHtml(g.game) + ' Cover" loading="lazy" onerror="this.outerHTML=\'<div class=\"top-game-cover-fallback\">GAME</div>\'">' : '<div class="top-game-cover-fallback">GAME</div>') + '<span class="top-game-rank">' + (i + 1) + '</span><div class="top-game-name">' + escapeHtml(g.game) + '</div><div class="top-game-meta">' + escapeHtml(meta || 'TOP RANKING') + '</div>';
+        return steam.steamUrl ? '<a class="top-game" href="' + escapeHtml(steam.steamUrl) + '" target="_blank" rel="noopener noreferrer">' + content + '</a>' : '<div class="top-game">' + content + '</div>';
       }).join('') : '<div class="empty">Noch keine Top-Games eingetragen.</div>';
     }
 
@@ -3555,7 +3566,7 @@
       document.getElementById('set-maintenance').checked = s.maintenance_enabled === '1';
        document.getElementById('set-maintenance-text').value = s.maintenance_text || '';
        const topGames = JSON.parse(s.top_games || '[]');
-       [1, 2, 3].forEach(function (i) { document.getElementById('set-game-' + i).value = topGames[i - 1]?.game || ''; });
+       [1, 2, 3].forEach(function (i) { document.getElementById('set-game-' + i).value = topGames[i - 1]?.game || ''; document.getElementById('set-game-url-' + i).value = topGames[i - 1]?.steamUrl || ''; });
       const annDur = document.getElementById('ann-duration');
       if (annDur && !annDur.value.trim()) annDur.value = formatDuration(s.ann_duration_default);
     }
@@ -3570,7 +3581,7 @@
         ann_duration_default: String(parsedDur || 0),
         maintenance_enabled: document.getElementById('set-maintenance').checked ? '1' : '0',
          maintenance_text: document.getElementById('set-maintenance-text').value.trim(),
-                     top_games: JSON.stringify([1, 2, 3].map(function (i) { return { game: document.getElementById('set-game-' + i).value.trim(), discord: '', score: '' }; }).filter(function (g) { return g.game; })),
+                     top_games: JSON.stringify([1, 2, 3].map(function (i) { const game = document.getElementById('set-game-' + i).value.trim(); const link = document.getElementById('set-game-url-' + i).value.trim(); const steam = steamData(game, link); return { game: game, discord: '', score: '', steamUrl: steam.steamUrl, imageUrl: steam.imageUrl }; }).filter(function (g) { return g.game; })),
       };
       const data = await api('/api/admin/settings', { settings }, getToken());
       if (data.success) {
