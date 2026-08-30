@@ -59,6 +59,7 @@ const DEFAULTS = {
   ann_duration_default: '60',
   maintenance_enabled: '0',
   maintenance_text: 'Unsere Seite ist aktuell in Wartungsarbeiten.',
+  top_games: '[]',
 };
 
 export default {
@@ -1549,9 +1550,21 @@ async function handleFeed(request, env, corsHeaders, settings) {
      highlightsEnabled: settings.highlights_enabled === '1',
        maintenanceEnabled: settings.maintenance_enabled === '1',
        maintenanceText: settings.maintenance_text,
-       maxImageMb: Number(settings.max_image_mb) || 10,
+      maxImageMb: Number(settings.max_image_mb) || 10,
+      topGames: parseTopGames(settings.top_games),
     },
   }, 200, corsHeaders);
+}
+
+function parseTopGames(value) {
+  try {
+    const games = JSON.parse(String(value || '[]'));
+    return Array.isArray(games) ? games.slice(0, 3).map(g => ({
+      game: String(g.game || '').trim().slice(0, 40),
+      discord: String(g.discord || '').trim().slice(0, 40),
+      score: String(g.score || '').trim().slice(0, 20),
+    })).filter(g => g.game) : [];
+  } catch (err) { return []; }
 }
 
 async function handleCreatePost(request, env, corsHeaders, settings) {
@@ -1901,7 +1914,11 @@ async function handleAdminSettingsSet(request, env, corsHeaders) {
 
   let body = {};
   try { body = await request.json(); } catch (err) {}
-  const updates = body.settings || {};
+  const updates = { ...(body.settings || {}) };
+  if (updates.top_games !== undefined) {
+    const games = parseTopGames(updates.top_games);
+    updates.top_games = JSON.stringify(games);
+  }
 
   await setSettings(env, updates);
   const settings = await getSettings(env);

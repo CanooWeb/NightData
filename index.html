@@ -281,7 +281,15 @@
     .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid rgba(139,63,240,0.35); background: linear-gradient(180deg, rgba(139,63,240,0.12), rgba(16,18,30,0)); }
     .panel-head h2 { font-family: 'Orbitron',sans-serif; font-weight: 700; letter-spacing: 3px; font-size: 15px; color: #c47dff; text-shadow: 0 0 12px rgba(0,0,0,0.9), 0 0 4px rgba(139,63,240,0.5); }
     .panel-head .live { font-family: 'Share Tech Mono',monospace; font-size: 11px; color: #7ae0e0; letter-spacing: 2px; text-shadow: 0 0 8px rgba(122,224,224,0.6); }
-    .panel-body { padding: 18px 20px; }
+     .panel-body { padding: 18px 20px; }
+     .top-games-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+     .top-game { position: relative; padding: 14px 12px 12px 42px; min-height: 82px; border: 1px solid rgba(255,209,102,.35); border-radius: 10px; background: linear-gradient(135deg, rgba(255,209,102,.1), rgba(16,18,30,.8)); }
+     .top-game-rank { position: absolute; left: 12px; top: 14px; color: #ffd166; font: 900 22px 'Orbitron',sans-serif; }
+     .top-game-name { color: #f0e7ff; font: 700 13px 'Orbitron',sans-serif; overflow-wrap: anywhere; }
+     .top-game-meta { margin-top: 8px; color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
+     .nightman-canvas { display: block; width: 100%; height: 150px; border: 1px solid rgba(122,224,224,.35); border-radius: 10px; background: linear-gradient(#080c1c, #171332); cursor: pointer; touch-action: none; }
+     .nightman-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: #8e7bb2; font: 11px 'Share Tech Mono',monospace; }
+     @media (max-width: 640px) { .top-games-grid { grid-template-columns: 1fr; } .nightman-canvas { height: 130px; } }
 
     .ticket-form { display: grid; gap: 12px; margin-bottom: 20px; }
     @media (min-width: 640px) { .ticket-form { grid-template-columns: 1fr 1fr; } .ticket-form .tf-info, .ticket-form .tf-btn { grid-column: 1 / -1; } }
@@ -879,6 +887,19 @@
         <div class="hero-sub">// NIGHT DATA SYSTEM //</div>
       </div>
 
+      <div class="panel" id="topGamesPanel">
+        <div class="panel-head"><h2>TOP 3 GAMES</h2><span class="live">DISCORD USER INFOS</span></div>
+        <div class="panel-body"><div class="top-games-grid" id="topGamesList"><div class="empty">Noch keine Top-Games eingetragen.</div></div></div>
+      </div>
+
+      <div class="panel" id="nightmanPanel">
+        <div class="panel-head"><h2>NIGHTMAN</h2><span class="live">JUMP RUN</span></div>
+        <div class="panel-body">
+          <canvas id="nightmanCanvas" class="nightman-canvas" width="640" height="150" aria-label="Nightman Minispiel"></canvas>
+          <div class="nightman-controls"><span>Leertaste, Klick oder Tippen zum Springen</span><button class="btn mini" id="nightmanStart" type="button" onclick="startNightman()">Start</button><span id="nightmanScore">SCORE 0</span></div>
+        </div>
+      </div>
+
       <div class="bubblezone hidden" id="bubblezone">
         <div id="announceBubbles"></div>
       </div>
@@ -1073,11 +1094,15 @@
             <input type="text" id="set-anndur" placeholder="z.B. 45s, 10m, 2h, 1d oder '0' = dauerhaft">
           </div>
           <div class="checkrow"><input type="checkbox" id="set-maintenance"><label for="set-maintenance">Wartungsmodus aktivieren</label></div>
-          <div class="row">
-            <label for="set-maintenance-text">Wartungshinweis (leer = löschen)</label>
-            <input type="text" id="set-maintenance-text" placeholder="Unsere Seite ist aktuell in Wartungsarbeiten.">
-          </div>
-          <button type="submit" id="btnSaveSettings" onclick="adminSaveSettings()">Einstellungen speichern</button>
+           <div class="row">
+             <label for="set-maintenance-text">Wartungshinweis (leer = löschen)</label>
+             <input type="text" id="set-maintenance-text" placeholder="Unsere Seite ist aktuell in Wartungsarbeiten.">
+           </div>
+           <div class="row">
+             <label for="set-top-games">Top 3 Games aus Discord-User-Infos</label>
+             <textarea id="set-top-games" rows="4" maxlength="600" placeholder="Spiel | Discord-Name | Score&#10;Valorant | NoxxZ_99 | 24 Siege&#10;Minecraft | Can2201 | 180h"></textarea>
+           </div>
+           <button type="submit" id="btnSaveSettings" onclick="adminSaveSettings()">Einstellungen speichern</button>
           <div id="adm-settings-msg" class="message"></div>
         </div>
       </div>
@@ -2668,10 +2693,11 @@
     }
 
     function applyConfig(config) {
-      if (!config) return;
+       if (!config) return;
       maxImageMb = Number(config.maxImageMb) || 10;
       document.title = config.siteTitle || 'NightData';
-      document.getElementById('heroTitle').textContent = config.siteTitle || 'NightData';
+       document.getElementById('heroTitle').textContent = config.siteTitle || 'NightData';
+       renderTopGames(config.topGames || []);
       const welcome = document.getElementById('welcomeBanner');
       if (config.welcomeText) {
         welcome.textContent = config.welcomeText;
@@ -2681,6 +2707,62 @@
       }
       applyMaintenanceState(!!config.maintenanceEnabled, config.maintenanceText);
     }
+
+    function renderTopGames(games) {
+      const box = document.getElementById('topGamesList');
+      if (!box) return;
+      box.innerHTML = games.length ? games.map(function (g, i) {
+        const meta = [g.discord, g.score].filter(Boolean).join(' · ');
+        return '<div class="top-game"><span class="top-game-rank">' + (i + 1) + '</span><div class="top-game-name">' + escapeHtml(g.game) + '</div><div class="top-game-meta">' + escapeHtml(meta || 'Discord-Info') + '</div></div>';
+      }).join('') : '<div class="empty">Noch keine Top-Games eingetragen.</div>';
+    }
+
+    let nightmanFrame = null;
+    let nightmanRunning = false;
+    let nightmanPlayer = { y: 110, vy: 0 };
+    let nightmanObstacles = [];
+    let nightmanScoreValue = 0;
+    let nightmanLast = 0;
+    function nightmanJump() {
+      if (!nightmanRunning) { startNightman(); return; }
+      if (nightmanPlayer.y >= 109) nightmanPlayer.vy = -410;
+    }
+    function startNightman() {
+      const canvas = document.getElementById('nightmanCanvas');
+      if (!canvas) return;
+      nightmanRunning = true;
+      nightmanPlayer = { y: 110, vy: 0 };
+      nightmanObstacles = [];
+      nightmanScoreValue = 0;
+      nightmanLast = performance.now();
+      document.getElementById('nightmanStart').textContent = 'Nochmal';
+      if (nightmanFrame) cancelAnimationFrame(nightmanFrame);
+      nightmanFrame = requestAnimationFrame(nightmanLoop);
+    }
+    function nightmanLoop(now) {
+      const canvas = document.getElementById('nightmanCanvas');
+      const ctx = canvas && canvas.getContext('2d');
+      if (!ctx) return;
+      const dt = Math.min((now - nightmanLast) / 1000, .04);
+      nightmanLast = now;
+      nightmanPlayer.vy += 1050 * dt;
+      nightmanPlayer.y += nightmanPlayer.vy * dt;
+      if (nightmanPlayer.y > 110) { nightmanPlayer.y = 110; nightmanPlayer.vy = 0; }
+      nightmanObstacles.forEach(function (o) { o.x -= (210 + nightmanScoreValue * 2) * dt; });
+      if (!nightmanObstacles.length || nightmanObstacles[nightmanObstacles.length - 1].x < 430) nightmanObstacles.push({ x: 650, w: 14 + Math.random() * 12, h: 18 + Math.random() * 22 });
+      if (nightmanObstacles[0] && nightmanObstacles[0].x < -30) { nightmanObstacles.shift(); nightmanScoreValue++; }
+      const hit = nightmanObstacles.some(function (o) { return o.x < 94 && o.x + o.w > 66 && nightmanPlayer.y + 30 > 130 - o.h; });
+      ctx.clearRect(0, 0, 640, 150);
+      const gradient = ctx.createLinearGradient(0, 0, 0, 150); gradient.addColorStop(0, '#080c1c'); gradient.addColorStop(1, '#171332'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 640, 150);
+      ctx.fillStyle = 'rgba(122,224,224,.35)'; ctx.fillRect(0, 130, 640, 2);
+      ctx.fillStyle = '#8b3ff0'; ctx.fillRect(68, nightmanPlayer.y, 24, 20); ctx.fillStyle = '#7ae0e0'; ctx.fillRect(76, nightmanPlayer.y - 6, 8, 6);
+      ctx.fillStyle = '#ff4d6d'; nightmanObstacles.forEach(function (o) { ctx.fillRect(o.x, 130 - o.h, o.w, o.h); });
+      document.getElementById('nightmanScore').textContent = 'SCORE ' + nightmanScoreValue;
+      if (hit) { nightmanRunning = false; document.getElementById('nightmanStart').textContent = 'Nochmal'; return; }
+      nightmanFrame = requestAnimationFrame(nightmanLoop);
+    }
+    document.getElementById('nightmanCanvas').addEventListener('pointerdown', nightmanJump);
+    document.addEventListener('keydown', function (e) { if (e.code === 'Space' && document.getElementById('main').classList.contains('active')) { e.preventDefault(); nightmanJump(); } });
 
     function applyMaintenanceState(enabled, text) {
       const role = String(getStoredUser().role || '').toLowerCase();
@@ -3332,7 +3414,9 @@
       document.getElementById('set-maxmb').value = Number(s.max_image_mb) || 10;
       document.getElementById('set-anndur').value = formatDuration(s.ann_duration_default);
       document.getElementById('set-maintenance').checked = s.maintenance_enabled === '1';
-      document.getElementById('set-maintenance-text').value = s.maintenance_text || '';
+       document.getElementById('set-maintenance-text').value = s.maintenance_text || '';
+       const topGames = JSON.parse(s.top_games || '[]');
+       document.getElementById('set-top-games').value = topGames.map(function (g) { return [g.game, g.discord, g.score].filter(Boolean).join(' | '); }).join('\n');
       const annDur = document.getElementById('ann-duration');
       if (annDur && !annDur.value.trim()) annDur.value = formatDuration(s.ann_duration_default);
     }
@@ -3346,7 +3430,11 @@
         max_image_mb: String(Number(document.getElementById('set-maxmb').value) || 10),
         ann_duration_default: String(parsedDur || 0),
         maintenance_enabled: document.getElementById('set-maintenance').checked ? '1' : '0',
-        maintenance_text: document.getElementById('set-maintenance-text').value.trim(),
+         maintenance_text: document.getElementById('set-maintenance-text').value.trim(),
+         top_games: JSON.stringify(document.getElementById('set-top-games').value.split('\n').map(function (line) {
+           const parts = line.split('|').map(function (part) { return part.trim(); });
+           return { game: parts[0] || '', discord: parts[1] || '', score: parts[2] || '' };
+         }).filter(function (g) { return g.game; }).slice(0, 3)),
       };
       const data = await api('/api/admin/settings', { settings }, getToken());
       if (data.success) {
