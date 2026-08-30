@@ -283,18 +283,18 @@
     .panel-head .live { font-family: 'Share Tech Mono',monospace; font-size: 11px; color: #7ae0e0; letter-spacing: 2px; text-shadow: 0 0 8px rgba(122,224,224,0.6); }
      .panel-body { padding: 18px 20px; }
       .top-games-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; }
-       .top-game { position: relative; display: block; min-height: 118px; padding: 0 10px 10px 32px; overflow: hidden; border: 1px solid rgba(255,209,102,.35); border-radius: 9px; background: linear-gradient(145deg, rgba(255,209,102,.08), rgba(16,18,30,.88)); text-decoration: none; box-shadow: 0 0 18px rgba(255,209,102,.12), inset 0 0 18px rgba(255,209,102,.04); }
+       .top-game { position: relative; display: block; height: 100px; padding: 0 10px 8px 32px; overflow: hidden; border: 1px solid rgba(255,209,102,.35); border-radius: 9px; background: linear-gradient(145deg, rgba(255,209,102,.08), rgba(16,18,30,.88)); text-decoration: none; box-shadow: 0 0 18px rgba(255,209,102,.12), inset 0 0 18px rgba(255,209,102,.04); }
      .top-game-rank { position: absolute; left: 12px; top: 14px; color: #ffd166; font: 900 22px 'Orbitron',sans-serif; }
      .top-game-name { color: #f0e7ff; font: 700 13px 'Orbitron',sans-serif; overflow-wrap: anywhere; }
       .top-game-meta { margin-top: 8px; color: #9a6fd8; font: 11px 'Share Tech Mono',monospace; overflow-wrap: anywhere; }
-       .top-game.rank-1 { grid-column: 2; min-height: 122px; border-color: rgba(255,209,102,.72); box-shadow: 0 0 20px rgba(255,77,109,.18), 0 0 28px rgba(122,224,224,.12); }
-       .top-game.rank-2 { grid-column: 1; min-height: 114px; border-color: rgba(216,226,240,.58); box-shadow: 0 0 16px rgba(216,226,240,.14); }
-       .top-game.rank-3 { grid-column: 3; min-height: 114px; border-color: rgba(255,209,102,.52); box-shadow: 0 0 16px rgba(255,209,102,.16); }
+       .top-game.rank-1 { grid-column: 2; height: 104px; border-color: rgba(255,209,102,.72); box-shadow: 0 0 20px rgba(255,77,109,.18), 0 0 28px rgba(122,224,224,.12); }
+       .top-game.rank-2 { grid-column: 1; height: 100px; border-color: rgba(216,226,240,.58); box-shadow: 0 0 16px rgba(216,226,240,.14); }
+       .top-game.rank-3 { grid-column: 3; height: 100px; border-color: rgba(255,209,102,.52); box-shadow: 0 0 16px rgba(255,209,102,.16); }
       .top-game.rank-1 .top-game-rank { background: linear-gradient(90deg, #ff4d6d, #ffd166, #7ae0e0, #8b3ff0, #ff4d6d); background-size: 220% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: glowshift 3s linear infinite; }
       .top-game.rank-2 .top-game-rank { color: #e8ecff; text-shadow: 0 0 12px rgba(232,236,255,.9); }
       .top-game.rank-3 .top-game-rank { color: #ffd166; text-shadow: 0 0 12px rgba(255,209,102,.8); }
-      .top-game-cover { display: block; width: calc(100% + 42px); height: 58px; margin: 0 -10px 8px -32px; object-fit: cover; border-bottom: 1px solid rgba(255,209,102,.28); }
-      .top-game-cover-fallback { display: flex; align-items: center; justify-content: center; width: calc(100% + 42px); height: 58px; margin: 0 -10px 8px -32px; color: #ffd166; font: 700 12px 'Orbitron',sans-serif; letter-spacing: 1px; background: linear-gradient(135deg, #27164a, #101529); }
+       .top-game-cover { display: block; width: calc(100% + 42px); height: 46px; margin: 0 -10px 6px -32px; object-fit: cover; border-bottom: 1px solid rgba(255,209,102,.28); }
+       .top-game-cover-fallback { display: flex; align-items: center; justify-content: center; width: calc(100% + 42px); height: 46px; margin: 0 -10px 6px -32px; color: #ffd166; font: 700 11px 'Orbitron',sans-serif; letter-spacing: 1px; background: linear-gradient(135deg, #27164a, #101529); }
       .game-picker { display: grid; gap: 10px; margin-bottom: 14px; }
       .game-picker-row { display: flex; align-items: center; gap: 10px; }
       .game-picker-row span { width: 26px; color: #ffd166; font: 700 15px 'Orbitron',sans-serif; }
@@ -309,7 +309,7 @@
       .nightman-score-rank { width: 24px; color: #ffd166; font: 700 15px 'Orbitron',sans-serif; }
       .nightman-score-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .nightman-score-value { color: #7ae0e0; }
-      @media (max-width: 640px) { .top-games-grid { grid-template-columns: 1fr; } .top-game.rank-1, .top-game.rank-2, .top-game.rank-3 { grid-column: auto; } .nightman-canvas { height: 130px; } .game-picker-row { align-items: stretch; flex-wrap: wrap; } .game-picker-row span { width: 100%; } }
+      @media (max-width: 640px) { .top-games-grid { grid-template-columns: 1fr; } .top-game, .top-game.rank-1, .top-game.rank-2, .top-game.rank-3 { grid-column: auto; height: 100px; } .nightman-canvas { height: 130px; } .game-picker-row { align-items: stretch; flex-wrap: wrap; } .game-picker-row span { width: 100%; } }
 
     .ticket-form { display: grid; gap: 12px; margin-bottom: 20px; }
     @media (min-width: 640px) { .ticket-form { grid-template-columns: 1fr 1fr; } .ticket-form .tf-info, .ticket-form .tf-btn { grid-column: 1 / -1; } }
