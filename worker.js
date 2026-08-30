@@ -558,7 +558,10 @@ async function handleNightmanHighscores(request, env, corsHeaders) {
   const scores = (await env.DB.prepare(
     'SELECT username, score, created_at FROM nightman_highscores ORDER BY score DESC, id ASC LIMIT 3'
   ).all()).results;
-  return json({ scores }, 200, corsHeaders);
+  const personal = await env.DB.prepare(
+    'SELECT score FROM nightman_highscores WHERE user_id = ? ORDER BY score DESC LIMIT 1'
+  ).bind(user.id).first();
+  return json({ scores, personalBest: personal ? personal.score : 0 }, 200, corsHeaders);
 }
 
 async function handleNightmanScore(request, env, corsHeaders) {

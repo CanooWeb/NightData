@@ -921,7 +921,7 @@
         <div class="panel-body">
           <canvas id="nightmanCanvas" class="nightman-canvas" width="640" height="150" aria-label="Nightman Minispiel"></canvas>
           <div class="nightman-controls"><span>Orbs sammeln · Leertaste/Klick zum Springen</span><button class="btn mini" id="nightmanStart" type="button" onclick="startNightman()">Start</button><span id="nightmanScore">SCORE 0 · BEST 0</span></div>
-          <div class="nightman-highscores"><h3>GLOBALER HIGHSCORE</h3><div id="nightmanHighscores"><div class="empty">Lade Rangliste…</div></div></div>
+          <div class="nightman-highscores"><h3>GLOBALER HIGHSCORE</h3><div id="nightmanPersonalBest" class="case-status">DEIN BESTSCORE: 0</div><div id="nightmanHighscores"><div class="empty">Lade Rangliste…</div></div></div>
         </div>
       </div>
 
@@ -2825,9 +2825,13 @@
       nightmanFrame = requestAnimationFrame(nightmanLoop);
     }
     async function loadNightmanHighscores() {
+      if (!getToken()) return;
       const data = await apiGet('/api/nightman/highscores', getToken());
       const box = document.getElementById('nightmanHighscores');
-      if (!box || !Array.isArray(data.scores)) return;
+      const personal = document.getElementById('nightmanPersonalBest');
+      if (!box) return;
+      if (personal && Number.isFinite(Number(data.personalBest))) personal.textContent = 'DEIN BESTSCORE: ' + Number(data.personalBest);
+      if (!Array.isArray(data.scores)) { box.innerHTML = '<div class="empty">Rangliste momentan nicht verfügbar.</div>'; return; }
       box.innerHTML = data.scores.length ? data.scores.map(function (entry, i) {
         return '<div class="nightman-score-row"><span class="nightman-score-rank">' + (i + 1) + '.</span><span class="nightman-score-name">' + escapeHtml(entry.username) + '</span><span class="nightman-score-value">' + Number(entry.score) + '</span></div>';
       }).join('') : '<div class="empty">Noch keine Scores vorhanden.</div>';
@@ -2837,6 +2841,7 @@
       const data = await api('/api/nightman/highscores', { score: score }, getToken());
       if (data && data.improved) loadNightmanHighscores();
     }
+    setInterval(loadNightmanHighscores, 300000);
     document.getElementById('nightmanCanvas').addEventListener('pointerdown', nightmanJump);
     document.addEventListener('keydown', function (e) { if (e.code === 'Space' && document.getElementById('main').classList.contains('active')) { e.preventDefault(); nightmanJump(); } });
 
@@ -2896,7 +2901,7 @@
       const url = trollSoundUrls[sound];
       if (!url) return;
       const audio = new Audio(url);
-      audio.volume = 0.28;
+       audio.volume = 0.75;
       audio.play().catch(function () {});
     }
     async function pollTrollSounds() {
