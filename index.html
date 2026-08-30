@@ -346,9 +346,9 @@
       box-shadow: 0 8px 30px rgba(0,0,0,0.5);
       font-family: 'Share Tech Mono',monospace; font-size: 12px; color: #b18bf0; letter-spacing: 1px;
     }
-    .floatui .floatui-logout {
-      position: absolute; top: 18px; right: 18px; pointer-events: auto;
-    }
+     .floatui .floatui-menu {
+       position: absolute; top: 18px; right: 18px; pointer-events: auto;
+     }
     .floatui .floatui-admin {
       position: absolute; bottom: 18px; right: 18px; pointer-events: auto;
     }
@@ -474,10 +474,16 @@
       pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5);
     }
     .floatui-market { position: fixed; left: 18px; top: calc(50% + 78px); z-index: 8; pointer-events: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
-    .mobile-menu-toggle, .mobile-menu { display: none; }
-    .marketoverlay { position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto; padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px); }
-    .marketoverlay.show { display: block; }
-    .marketoverlay .shell { max-width: 900px; margin: 0 auto; }
+     .mobile-menu-toggle, .mobile-menu { display: none; }
+     .marketoverlay { position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto; padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px); }
+     .marketoverlay.show { display: block; }
+     .marketoverlay .shell { max-width: 900px; margin: 0 auto; }
+     .discordoverlay { position: fixed; inset: 0; z-index: 30; display: none; overflow-y: auto; padding: 24px 16px 80px; background: rgba(5,6,10,0.95); backdrop-filter: blur(12px); }
+     .discordoverlay.show { display: block; }
+     .discordoverlay .shell { max-width: 920px; margin: 0 auto; }
+     .multifunction-menu { position: fixed; top: 68px; right: 18px; z-index: 35; display: none; min-width: 190px; padding: 10px; background: rgba(11,13,22,.97); border: 1px solid rgba(139,63,240,.5); border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,.65); }
+     .multifunction-menu.show { display: grid; gap: 7px; }
+     .multifunction-menu .btn { width: 100%; text-align: left; }
     .market-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: end; margin-bottom: 22px; }
     .market-form .market-submit { grid-column: 1 / -1; }
     .market-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
@@ -516,7 +522,7 @@
      .bubble:hover, .ticket:hover, .market-item:hover { border-color: rgba(122,224,224,.42); box-shadow: 0 10px 34px rgba(0,0,0,.55), 0 0 18px rgba(122,224,224,.12); }
     .section-divider { opacity: .8; }
     ::selection { color: #fff; background: rgba(139,63,240,.65); }
-    @media (max-width: 700px) { .floatui-market { left: 10px; top: 87px; } .market-form { grid-template-columns: 1fr; } .market-form .market-submit { grid-column: auto; } }
+     @media (max-width: 700px) { .floatui-market { left: 10px; top: 87px; } .market-form { grid-template-columns: 1fr; } .market-form .market-submit { grid-column: auto; } .multifunction-menu { top: 58px; right: 10px; left: 10px; } }
     .floatui-cases.case-button {
       width: 92px; min-height: 72px; padding: 7px 9px; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 3px; border-radius: 14px;
@@ -688,7 +694,7 @@
       body { min-height: 100dvh; height: 100dvh; }
       .chatpanel { right: 10px; left: 10px; width: auto; height: 45vh; top: auto; bottom: 12px; }
       .chatmin { right: 10px; bottom: 12px; top: auto; transform: none; }
-      .floatui .rankpill, .floatui .floatui-admin, .floatui .floatui-friends, .floatui .floatui-cases, .floatui .floatui-market, .floatui .floatui-logout { display: none !important; }
+       .floatui .rankpill, .floatui .floatui-admin, .floatui .floatui-friends, .floatui .floatui-cases, .floatui .floatui-market, .floatui .floatui-menu { display: none !important; }
       .mobile-menu-toggle { display: block; position: fixed; top: 12px; right: 10px; z-index: 12; min-height: 44px; padding: 8px 14px; pointer-events: auto; }
       .mobile-menu { position: fixed; top: 64px; right: 10px; z-index: 40; width: min(230px, calc(100vw - 20px)); padding: 10px; border: 1px solid rgba(139,63,240,0.6); border-radius: 14px; background: rgba(11,13,22,0.97); box-shadow: 0 14px 40px rgba(0,0,0,0.65), 0 0 24px rgba(139,63,240,0.25); pointer-events: auto; }
       .mobile-menu.show { display: grid; gap: 7px; }
@@ -704,7 +710,7 @@
       .panel-head { padding: 12px 14px; }
       .panel-head h2 { font-size: 13px; letter-spacing: 2px; }
       .panel-body { padding: 14px; }
-       .adminoverlay, .profileoverlay, .marketoverlay, .dmoverlay { width: 100%; height: 100dvh; min-height: 100dvh; padding: 12px 10px 70px; }
+       .adminoverlay, .profileoverlay, .marketoverlay, .dmoverlay, .discordoverlay { width: 100%; height: 100dvh; min-height: 100dvh; padding: 12px 10px 70px; }
       .admin-head { padding: 11px 13px; margin-bottom: 12px; }
       .admin-head .brand { font-size: 14px; letter-spacing: 2px; }
       .adm-tabs { padding: 10px 12px 0; overflow-x: auto; flex-wrap: nowrap; }
@@ -865,17 +871,28 @@
       <span class="case-button-timer" id="caseButtonTimer">Lade...</span>
     </button>
     <button class="btn mini floatui-market" id="btnMarket" onclick="toggleMarketOverlay()" title="Items gegen Items oder Nightcoins handeln">Trade Market</button>
-    <button class="btn danger floatui-logout" onclick="doLogout()">Logout</button>
+     <button class="btn ok floatui-menu" onclick="toggleMultifunctionMenu()">Menü</button>
     <button class="btn ok mobile-menu-toggle" id="mobileMenuToggle" onclick="toggleMobileMenu()">Menü</button>
     <div class="mobile-menu" id="mobileMenu">
       <button class="btn mini" onclick="openProfile(); closeMobileMenu();">Profil</button>
       <button class="btn mini" onclick="toggleCaseOverlay(); closeMobileMenu();">Kiste</button>
-      <button class="btn mini" onclick="toggleMarketOverlay(); closeMobileMenu();">Trade Market</button>
-      <button class="btn mini" onclick="toggleDmOverlay(); closeMobileMenu();">Freunde &amp; Nachrichten</button>
-      <button class="btn mini adminonly" id="mobileMenuAdmin" onclick="openAdmin(); closeMobileMenu();">Admin</button>
-      <button class="btn mini danger" onclick="doLogout()">Logout</button>
-    </div>
-  </div>
+       <button class="btn mini" onclick="toggleMarketOverlay(); closeMobileMenu();">Trade Market</button>
+       <button class="btn mini" onclick="toggleDmOverlay(); closeMobileMenu();">Freunde &amp; Nachrichten</button>
+       <button class="btn mini" onclick="toggleDiscordOverlay(); closeMobileMenu();">Discord</button>
+       <button class="btn mini adminonly" id="mobileMenuAdmin" onclick="openAdmin(); closeMobileMenu();">Admin</button>
+       <button class="btn mini danger" onclick="doLogout()">Logout</button>
+     </div>
+   </div>
+
+   <div class="multifunction-menu" id="multifunctionMenu">
+     <button class="btn mini" onclick="openProfile(); closeMultifunctionMenu();">Profil</button>
+     <button class="btn mini" onclick="toggleDiscordOverlay(); closeMultifunctionMenu();">Discord</button>
+     <button class="btn mini" onclick="toggleCaseOverlay(); closeMultifunctionMenu();">Kiste</button>
+     <button class="btn mini" onclick="toggleMarketOverlay(); closeMultifunctionMenu();">Trade Market</button>
+     <button class="btn mini" onclick="toggleDmOverlay(); closeMultifunctionMenu();">Freunde &amp; Nachrichten</button>
+     <button class="btn mini adminonly" id="menuAdmin" onclick="openAdmin(); closeMultifunctionMenu();">Admin</button>
+     <button class="btn mini danger" onclick="doLogout()">Logout</button>
+   </div>
 
   <div id="main">
     <div class="shell">
@@ -887,12 +904,7 @@
         <div class="hero-sub">// NIGHT DATA SYSTEM //</div>
       </div>
 
-      <div class="panel" id="topGamesPanel">
-        <div class="panel-head"><h2>TOP 3 GAMES</h2><span class="live">DISCORD USER INFOS</span></div>
-        <div class="panel-body"><div class="top-games-grid" id="topGamesList"><div class="empty">Noch keine Top-Games eingetragen.</div></div></div>
-      </div>
-
-      <div class="panel" id="nightmanPanel">
+       <div class="panel" id="nightmanPanel">
         <div class="panel-head"><h2>NIGHTMAN</h2><span class="live">JUMP RUN</span></div>
         <div class="panel-body">
           <canvas id="nightmanCanvas" class="nightman-canvas" width="640" height="150" aria-label="Nightman Minispiel"></canvas>
@@ -906,35 +918,7 @@
 
       <div class="section-divider"></div>
 
-      <div class="panel" id="ticketPanel">
-        <div class="panel-head">
-          <h2>Discord User Information</h2>
-          <div style="display:flex;align-items:center;gap:10px;"><span class="live">● LIVE</span><button type="button" class="section-toggle" id="ticketInfoToggle" aria-expanded="true" onclick="toggleUserInformation()">ZUKLAPPEN ▲</button></div>
-        </div>
-        <div class="ticket-info-collapse" id="ticketInfoCollapse"><div class="panel-body">
-          <div class="ticket-form">
-            <div>
-              <label for="tk-name">Discord Name <span class="hint">(Pflichtfeld)</span></label>
-              <input type="text" id="tk-name" placeholder="z.B. NoxxZ_99" maxlength="64">
-            </div>
-            <div>
-              <label for="tk-id">Discord ID <span class="hint">(falls vorhanden)</span></label>
-              <input type="text" id="tk-id" placeholder="z.B. 123456789012345678" maxlength="64">
-            </div>
-            <div class="tf-info">
-              <label for="tk-info">Weitere Informationen</label>
-              <textarea id="tk-info" placeholder="Was möchtest du mitteilen? …" maxlength="2000"></textarea>
-            </div>
-            <div class="tf-btn">
-              <button type="submit" class="mg0" onclick="openTicket(event)">Abschicken</button>
-              <div id="tk-message" class="message"></div>
-            </div>
-          </div>
-          <div id="ticketList"><div class="empty">Keine Tickets vorhanden.</div></div>
-        </div></div>
-      </div>
-
-    </div>
+     </div>
   </div>
 
   <div class="adminoverlay" id="adminOverlay">
@@ -1252,6 +1236,34 @@
           <h3>Aktive Angebote</h3>
           <div class="market-list" id="marketListings"><div class="empty">Lade...</div></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="discordoverlay" id="discordOverlay">
+    <div class="shell">
+      <div class="admin-head">
+        <div class="brand">◈ DISCORD</div>
+        <button class="btn danger" onclick="toggleDiscordOverlay()">Schließen</button>
+      </div>
+      <div class="panel" id="topGamesPanel">
+        <div class="panel-head"><h2>TOP 3 GAMES</h2><span class="live">DISCORD USER INFOS</span></div>
+        <div class="panel-body"><div class="top-games-grid" id="topGamesList"><div class="empty">Noch keine Top-Games eingetragen.</div></div></div>
+      </div>
+      <div class="panel" id="ticketPanel">
+        <div class="panel-head">
+          <h2>Discord User Information</h2>
+          <div style="display:flex;align-items:center;gap:10px;"><span class="live">● LIVE</span><button type="button" class="section-toggle" id="ticketInfoToggle" aria-expanded="true" onclick="toggleUserInformation()">ZUKLAPPEN ▲</button></div>
+        </div>
+        <div class="ticket-info-collapse" id="ticketInfoCollapse"><div class="panel-body">
+          <div class="ticket-form">
+            <div><label for="tk-name">Discord Name <span class="hint">(Pflichtfeld)</span></label><input type="text" id="tk-name" placeholder="z.B. NoxxZ_99" maxlength="64"></div>
+            <div><label for="tk-id">Discord ID <span class="hint">(falls vorhanden)</span></label><input type="text" id="tk-id" placeholder="z.B. 123456789012345678" maxlength="64"></div>
+            <div class="tf-info"><label for="tk-info">Weitere Informationen</label><textarea id="tk-info" placeholder="Was möchtest du mitteilen? …" maxlength="2000"></textarea></div>
+            <div class="tf-btn"><button type="submit" class="mg0" onclick="openTicket(event)">Abschicken</button><div id="tk-message" class="message"></div></div>
+          </div>
+          <div id="ticketList"><div class="empty">Keine Tickets vorhanden.</div></div>
+        </div></div>
       </div>
     </div>
   </div>
@@ -1963,11 +1975,25 @@
       if (caseCdTimer) { clearInterval(caseCdTimer); caseCdTimer = null; }
     }
 
-    function toggleMarketOverlay() {
-      const overlay = document.getElementById('marketOverlay');
-      overlay.classList.toggle('show');
-      if (overlay.classList.contains('show')) loadMarket();
-    }
+     function toggleMarketOverlay() {
+       const overlay = document.getElementById('marketOverlay');
+       overlay.classList.toggle('show');
+       if (overlay.classList.contains('show')) loadMarket();
+     }
+
+     function toggleDiscordOverlay() {
+       const overlay = document.getElementById('discordOverlay');
+       overlay.classList.toggle('show');
+       document.getElementById('main').classList.toggle('blur', overlay.classList.contains('show'));
+     }
+
+     function toggleMultifunctionMenu() {
+       document.getElementById('multifunctionMenu').classList.toggle('show');
+     }
+
+     function closeMultifunctionMenu() {
+       document.getElementById('multifunctionMenu').classList.remove('show');
+     }
 
     function toggleMobileMenu() {
       document.getElementById('mobileMenu').classList.toggle('show');
@@ -2881,9 +2907,10 @@
       document.getElementById('loginCard').classList.add('hidden');
       document.getElementById('main').classList.add('active');
       document.getElementById('floatui').classList.remove('hidden');
-      const isStaff = user.role === 'founder' || user.role === 'admin' || user.role === 'moderator';
-      document.getElementById('btnAdmin').classList.toggle('show', isStaff);
-      document.getElementById('mobileMenuAdmin').classList.toggle('show', isStaff);
+       const isStaff = user.role === 'founder' || user.role === 'admin' || user.role === 'moderator';
+       document.getElementById('btnAdmin').classList.toggle('show', isStaff);
+       document.getElementById('mobileMenuAdmin').classList.toggle('show', isStaff);
+       document.getElementById('menuAdmin').classList.toggle('show', isStaff);
       updateRankPill(user);
       applyWebsiteTheme(user);
       loadCase();
@@ -2891,9 +2918,11 @@
       closeAdmin();
       closeProfile();
       closeDmOverlay();
-      closeUserPopup();
-      document.getElementById('marketOverlay').classList.remove('show');
-      closeMobileMenu();
+       closeUserPopup();
+       document.getElementById('marketOverlay').classList.remove('show');
+       document.getElementById('discordOverlay').classList.remove('show');
+       closeMultifunctionMenu();
+       closeMobileMenu();
       loadFeed();
       startChat();
       document.getElementById('btnFriends').classList.remove('hidden');
@@ -3032,8 +3061,10 @@
       closeAdmin();
       closeProfile();
       closeDmOverlay();
-      closeUserPopup();
-      closeCaseOverlay();
+       closeUserPopup();
+       closeCaseOverlay();
+       document.getElementById('discordOverlay').classList.remove('show');
+       closeMultifunctionMenu();
       stopChatPolling();
       hideChat();
       if (dmUnreadTimer) { clearInterval(dmUnreadTimer); dmUnreadTimer = null; }
